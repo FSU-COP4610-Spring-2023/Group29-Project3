@@ -14,9 +14,15 @@ tokenlist *new_tokenlist(void);
 void add_token(tokenlist *tokens, char *item);
 void free_tokens(tokenlist *tokens);
 
-int main()
+int main(int argc, char * argv[])
 {
-	while (1) {
+	if(argc == 2)
+    {
+        printf("%s", argv[0]);  //executable name
+        printf("%s", argv[1]);  //first argument
+    }
+    
+    while (1) {
 		printf("> ");
 
 		/* input contains the whole command
