@@ -11,6 +11,10 @@
 #define OPEN_FILE_TABLE_SIZE 10     // max files for files. 
 #define MAX_NAME_LENGTH      11     // 11 in total but 3 for extensions, we only use 8.
 
+FILE * fp;
+FILE * fp1;
+FILE * fp2;
+
 
 // data structures for FAT32 
 // Hint: BPB, DIR Entry, Open File Table -- how will you structure it?
@@ -43,6 +47,12 @@ void add_to_path(char * dir);
 CWD cwd;
 
 int main(int argc, char * argv[]) {
+    // check argv and print
+    if(argc == 2){
+        printf("%s", argv[0]);
+        printf("%s", argv[1]);
+    }
+    
     // error checking for number of arguments.
     if(argc != 2) {
         printf("invalid number of arguments.\n");
