@@ -4,9 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <errno.h>
 
 #define BUFSIZE 40
 
@@ -20,6 +17,54 @@ FILE *fp2;
 
 // data structures for FAT32
 // Hint: BPB, DIR Entry, Open File Table -- how will you structure it?
+typedef struct __attribute__((packed))
+{
+    unsigned char DIR_Name[11];
+    unsigned char DIR_Attr;
+    unsigned char DIR_NTRes;
+    unsigned char DIR_CrtTimeTenth;
+    unsigned short DIR_CrtTime;
+    unsigned short DIR_CrtDate;
+    unsigned short DIR_LastAccDate;
+    unsigned short DIR_FstClusHi;
+    unsigned short DIR_WrtTime;
+    unsigned short DIR_WrtDate;
+    unsigned short DIR_FstClusLo;
+    unsigned int DIR_FileSize;
+} DirEntry;
+
+typedef struct __attribute__((packed))
+{
+    unsigned char BS_jmpBoot[3];
+    unsigned char BS_OEMName[8];
+    unsigned short BPB_BytesPerSec;
+    unsigned char BPB_SecsPerClus;
+    unsigned short BPB_RsvdSecCnt;
+    unsigned char BPB_NumFATs;
+    unsigned short BPB_RootEntCnt;
+    unsigned short BPB_TotSec16;
+    unsigned char BPB_Media;
+    unsigned short BPB_FATSz16;
+    unsigned short BPB_SecPerTrk;
+    unsigned short BPB_NumHeads;
+    unsigned int BPB_HiddSec;
+    unsigned int BPB_TotSec32;
+    unsigned int BPB_FATSz32;
+    unsigned short BPB_ExtFlags;
+    unsigned short BPB_FSVer;
+    unsigned int BPB_RootClus;
+    unsigned short BPB_FSInfo;
+    unsigned short BPB_BkBootSe;
+    unsigned char BPB_Reserved[12];
+    unsigned char BS_DrvNum;
+    unsigned char BS_Reserved1;
+    unsigned char BS_BootSig;
+    unsigned int BS_VollD;
+    unsigned char BS_VolLab[11];
+    unsigned char BS_FilSysType[8];
+    unsigned char empty[420];
+    unsigned short Signature_word;
+} BPB;
 
 // stack implementaiton -- you will have to implement a dynamic stack
 // Hint: For removal of files/directories
@@ -37,14 +82,27 @@ typedef struct
     char **items;
 } tokenlist;
 
+// function declarations
 tokenlist *tokenize(char *input);
 void free_tokens(tokenlist *tokens);
 char *get_input();
 void add_token(tokenlist *tokens, char *item);
 void add_to_path(char *dir);
+void info(BPB bpb, unsigned int image_size);
+void mkdir(char *dir_name);
+void cd(char *DIRNAME);
+void ls(void);
+void lseek(char *FILENAME, unsigned int OFFSET);
+void read(char *FILENAME, unsigned int size);
+void size(char *FILENAME);
+void open(char *FILENAME, int FLAGS);
+void lsof(void);
+void close(char *FILENAME);
 
 // global variables
 CWD cwd;
+FILE *fp; // file pointers
+BPB bpb;  // boot sector information
 
 int main(int argc, char *argv[])
 {
@@ -95,96 +153,27 @@ int main(int argc, char *argv[])
 
 // commands -- all commands mentioned in part 2-6 (17 cmds)
 
-void cd(char *DIRNAME)
+// info command
+void info(BPB bpb, unsigned int image_size)
 {
-    if (DIRNAME == NULL)
-    {
-        fprintf(stderr, "cd: no directory specified\n");
-        return;
-    }
-
-    if (chdir(DIRNAME) == -1)
-    {
-        if (errno == ENOENT)
-        {
-            fprintf(stderr, "cd: directory not found: %s\n", DIRNAME);
-        }
-        else if (errno == EACCES)
-        {
-            fprintf(stderr, "cd: permission denied: %s\n", DIRNAME);
-        }
-        else
-        {
-            fprintf(stderr, "cd: error changing directory: %s\n", DIRNAME);
-        }
-    }
+    printf("Position of Root Cluster: %d\n", bpb.BPB_RootClus);
+    printf("Bytes per Sector: %d\n", bpb.BPB_BytsPerSec);
+    printf("Sectors per Cluster: %d\n", bpb.BPB_SecPerClus);
+    unsigned int data_region_size = (bpb.BPB_TotSec32 - (bpb.BPB_RsvdSecCnt + (bpb.BPB_NumFATs * bpb.BPB_FATSz32))) * bpb.BPB_BytsPerSec;
+    unsigned int total_clusters = data_region_size / (bpb.BPB_SecPerClus * bpb.BPB_BytsPerSec);
+    printf("Total Clusters in Data Region: %d\n", total_clusters);
+    printf("Number of Entries in one FAT: %d\n", (bpb.BPB_FATSz32 * bpb.BPB_BytsPerSec) / 4); // each entry is 4 bytes long
+    printf("Size of Image (bytes): %d\n", image_size);
 }
+void cd(char *DIRNAME) {}
+void ls(void) {}
+void lseek(char *FILENAME, unsigned int OFFSET) {}
+void read(char *FILENAME, unsigned int size) {}
+void size(char *FILENAME) {}
+void open(char *FILENAME, int FLAGS) {}
+void lsof(void) {}
+void close(char *FILENAME) {}
 
-void creat(char *FILENAME)
-{
-    if (FILENAME == NULL)
-    {
-        fprintf(stderr, "creat: no file name specified\n");
-        return;
-    }
-
-    FILE *fp = fopen(FILENAME, "wx");
-    if (fp == NULL)
-    {
-        if (errno == EEXIST)
-        {
-            fprintf(stderr, "creat: file already exists: %s\n", FILENAME);
-        }
-        else
-        {
-            fprintf(stderr, "creat: error creating file: %s\n", FILENAME);
-        }
-        return;
-    }
-
-    fclose(fp);
-}
-
-void cp(char *FROM, char *TO)
-{
-    if (FROM == NULL || TO == NULL)
-    {
-        fprintf(stderr, "cp: both source and destination files must be specified\n");
-        return;
-    }
-
-    FILE *from_fp = fopen(FROM, "r");
-    if (from_fp == NULL)
-    {
-        fprintf(stderr, "cp: cannot open source file %s\n", FROM);
-        return;
-    }
-
-    FILE *to_fp = fopen(TO, "w");
-    if (to_fp == NULL)
-    {
-        fclose(from_fp);
-        fprintf(stderr, "cp: cannot open destination file %s\n", TO);
-        return;
-    }
-
-    char buf[BUFSIZ];
-    size_t nread;
-    while ((nread = fread(buf, 1, BUFSIZ, from_fp)) > 0)
-    {
-        size_t nwritten = fwrite(buf, 1, nread, to_fp);
-        if (nwritten != nread)
-        {
-            fprintf(stderr, "cp: write error copying file %s to %s\n", FROM, TO);
-            fclose(from_fp);
-            fclose(to_fp);
-            return;
-        }
-    }
-
-    fclose(from_fp);
-    fclose(to_fp);
-}
 // add directory string to cwd path -- helps keep track of where we are in image.
 void add_to_path(char *dir)
 {
