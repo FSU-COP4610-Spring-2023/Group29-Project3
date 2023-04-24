@@ -88,16 +88,23 @@ void free_tokens(tokenlist *tokens);
 char *get_input();
 void add_token(tokenlist *tokens, char *item);
 void add_to_path(char *dir);
-void info(BPB bpb, unsigned int image_size);
-void mkdir(char *dir_name);
+void info();
+void exit();
 void cd(char *DIRNAME);
 void ls(void);
+void mkdir(char *DIRNAME);
+void creat(char *FILENAME);
+void cp(char *FILENAME, unsigned int TO);
+void open(char *FILENAME, int FLAGS);
+void close(char *FILENAME);
+void lsof(void);
+void size(char *FILENAME);
 void lseek(char *FILENAME, unsigned int OFFSET);
 void read(char *FILENAME, unsigned int size);
-void size(char *FILENAME);
-void open(char *FILENAME, int FLAGS);
-void lsof(void);
-void close(char *FILENAME);
+void write(char *FILENAME, char *STRING);
+void rename(char *FILENAME, char *NEW_FILENAME);
+void rm(char *FILENAME);
+void rmdir(char *DIRNAME);
 
 // global variables
 CWD cwd;
@@ -153,26 +160,34 @@ int main(int argc, char *argv[])
 
 // commands -- all commands mentioned in part 2-6 (17 cmds)
 
-// info command
-void info(BPB bpb, unsigned int image_size)
-{
-    printf("Position of Root Cluster: %d\n", bpb.BPB_RootClus);
-    printf("Bytes per Sector: %d\n", bpb.BPB_BytsPerSec);
-    printf("Sectors per Cluster: %d\n", bpb.BPB_SecPerClus);
-    unsigned int data_region_size = (bpb.BPB_TotSec32 - (bpb.BPB_RsvdSecCnt + (bpb.BPB_NumFATs * bpb.BPB_FATSz32))) * bpb.BPB_BytsPerSec;
-    unsigned int total_clusters = data_region_size / (bpb.BPB_SecPerClus * bpb.BPB_BytsPerSec);
-    printf("Total Clusters in Data Region: %d\n", total_clusters);
-    printf("Number of Entries in one FAT: %d\n", (bpb.BPB_FATSz32 * bpb.BPB_BytsPerSec) / 4); // each entry is 4 bytes long
-    printf("Size of Image (bytes): %d\n", image_size);
-}
+// Mount
+void info() {}
+void exit() {}
+
+// Navigation
 void cd(char *DIRNAME) {}
 void ls(void) {}
+
+// Create
+void mkdir(char *DIRNAME) {}
+void creat(char *FILENAME) {}
+void cp(char *FILENAME, unsigned int TO) {}
+
+// Read
+void open(char *FILENAME, int FLAGS) {}
+void close(char *FILENAME) {}
+void lsof(void) {}
+void size(char *FILENAME) {}
 void lseek(char *FILENAME, unsigned int OFFSET) {}
 void read(char *FILENAME, unsigned int size) {}
-void size(char *FILENAME) {}
-void open(char *FILENAME, int FLAGS) {}
-void lsof(void) {}
-void close(char *FILENAME) {}
+
+// Update
+void write(char *FILENAME, char *STRING) {}
+void rename(char *FILENAME, char *NEW_FILENAME) {}
+
+// Delete
+void rm(char *FILENAME) {}
+void rmdir(char *DIRNAME) {}
 
 // add directory string to cwd path -- helps keep track of where we are in image.
 void add_to_path(char *dir)
