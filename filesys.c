@@ -48,10 +48,10 @@ CWD cwd;
 
 int main(int argc, char * argv[]) {
     // check argv and print
-    if(argc == 2){
+    /*if(argc == 2){
         printf("%s", argv[0]);
         printf("%s", argv[1]);
-    }
+    }*/
     
     // error checking for number of arguments.
     if(argc != 2) {
