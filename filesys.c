@@ -7,45 +7,120 @@
 
 #define BUFSIZE 40
 
-#define PATH_SIZE            4096   // max possible size for path string.
-#define OPEN_FILE_TABLE_SIZE 10     // max files for files. 
-#define MAX_NAME_LENGTH      11     // 11 in total but 3 for extensions, we only use 8.
+#define PATH_SIZE 4096          // max possible size for path string.
+#define OPEN_FILE_TABLE_SIZE 10 // max files for files.
+#define MAX_NAME_LENGTH 11      // 11 in total but 3 for extensions, we only use 8.
 
-FILE * fp;
-FILE * fp1;
-FILE * fp2;
+FILE *fp;
+FILE *fp1;
+FILE *fp2;
 
-
-// data structures for FAT32 
+// data structures for FAT32
 // Hint: BPB, DIR Entry, Open File Table -- how will you structure it?
+/*typedef struct __attribute__((packed))
+{
+    unsigned char DIR_Name[11];
+    unsigned char DIR_Attr;
+    unsigned char DIR_NTRes;
+    unsigned char DIR_CrtTimeTenth;
+    unsigned short DIR_CrtTime;
+    unsigned short DIR_CrtDate;
+    unsigned short DIR_LastAccDate;
+    unsigned short DIR_FstClusHi;
+    unsigned short DIR_WrtTime;
+    unsigned short DIR_WrtDate;
+    unsigned short DIR_FstClusLo;
+    unsigned int DIR_FileSize;
+} DirEntry;*/
 
+struct __attribute__((__packed__))
+{
+    unsigned char DIR_Name[11]; // directory name
+    unsigned char DIR_Attr;     // directory attribute count
+    unsigned short DIR_FirstClusterHigh;
+    unsigned short DIR_FirstClusterLow;
+    unsigned int DIR_FileSize; // directory size
+} DirEntry;
 
-
+typedef struct __attribute__((packed))
+{
+    unsigned char BS_jmpBoot[3];
+    unsigned char BS_OEMName[8];
+    unsigned short BPB_BytesPerSec;
+    unsigned char BPB_SecsPerClus;
+    unsigned short BPB_RsvdSecCnt;
+    unsigned char BPB_NumFATs;
+    unsigned short BPB_RootEntCnt;
+    unsigned short BPB_TotSec16;
+    unsigned char BPB_Media;
+    unsigned short BPB_FATSz16;
+    unsigned short BPB_SecPerTrk;
+    unsigned short BPB_NumHeads;
+    unsigned int BPB_HiddSec;
+    unsigned int BPB_TotSec32;
+    unsigned int BPB_FATSz32;
+    unsigned short BPB_ExtFlags;
+    unsigned short BPB_FSVer;
+    unsigned int BPB_RootClus;
+    unsigned short BPB_FSInfo;
+    unsigned short BPB_BkBootSe;
+    unsigned char BPB_Reserved[12];
+    unsigned char BS_DrvNum;
+    unsigned char BS_Reserved1;
+    unsigned char BS_BootSig;
+    unsigned int BS_VollD;
+    unsigned char BS_VolLab[11];
+    unsigned char BS_FilSysType[8];
+    unsigned char empty[420];
+    unsigned short Signature_word;
+} BPB;
 
 // stack implementaiton -- you will have to implement a dynamic stack
 // Hint: For removal of files/directories
 
-
-typedef struct {
-    char path[PATH_SIZE];           // path string
+typedef struct
+{
+    char path[PATH_SIZE]; // path string
     // add a variable to help keep track of current working directory in file.
     // Hint: In the image, where does the first directory entry start?
 } CWD;
 
-typedef struct  {
+typedef struct
+{
     int size;
-    char ** items;
+    char **items;
 } tokenlist;
 
-tokenlist * tokenize(char * input);
-void free_tokens(tokenlist * tokens);
-char * get_input();
-void add_token(tokenlist * tokens, char * item);
-void add_to_path(char * dir);
+// function declarations
+tokenlist *tokenize(char *input);
+void free_tokens(tokenlist *tokens);
+char *get_input();
+void add_token(tokenlist *tokens, char *item);
+void add_to_path(char *dir);
+void info();
+void cd(char *DIRNAME);
+void ls(void);
+void mkdir(char *DIRNAME);
+void creat(char *FILENAME);
+void cp(char *FILENAME, unsigned int TO);
+void open(char *FILENAME, int FLAGS);
+void close(char *FILENAME);
+void lsof(void);
+void size(char *FILENAME);
+void lseek(char *FILENAME, unsigned int OFFSET);
+void read(char *FILENAME, unsigned int size);
+void write(char *FILENAME, char *STRING);
+// void rename(char *FILENAME, char *NEW_FILENAME);
+void rm(char *FILENAME);
+void rmdir(char *DIRNAME);
 
 // global variables
 CWD cwd;
+FILE *fp; // file pointers
+BPB bpb;  // boot sector information
+DirEntry currentEntry;
 
+<<<<<<< HEAD
 int main(int argc, char * argv[]) {
     // check argv and print
     /*if(argc == 2){
@@ -53,31 +128,53 @@ int main(int argc, char * argv[]) {
         printf("%s", argv[1]);
     }*/
     
+=======
+int main(int argc, char *argv[])
+{
+>>>>>>> f625773dc2e84214e587e34007ed0c83e201950a
     // error checking for number of arguments.
-    if(argc != 2) {
+    if (argc != 2)
+    {
         printf("invalid number of arguments.\n");
         return -1; // return error indicator if number of args is not 2.
     }
     // read and open argv[1] in file pointer.
-    if((fp = fopen(argv[1], "r+")) == NULL) { // r+ stands for read,write,append.
+    if ((fp = fopen(argv[1], "r+")) == NULL)
+    { // r+ stands for read,write,append.
         printf("%s does not exist\n.", argv[1]);
         return -1;
     }
+
     // obtain important information from bpb as well as initialize any important global variables
     memset(cwd.path, 0, PATH_SIZE);
+    fread(&bpb, sizeof(BPB), 1, fp);
 
     // parser
     char *input;
-
-    while(1) {
-        printf("%s/>", cwd.path);
+    while (1)
+    {
+        printf("%s", argv[1]);
+        printf("%s/> ", cwd.path);
         input = get_input();
-        tokenlist * tokens = tokenize(input);    
-        printf("tokens size: %d\n", tokens->size);
-        for(int i = 0; i < tokens->size; i++) {
-            printf("token %d: %s\n", i, tokens->items[i]);
+        tokenlist *tokens = tokenize(input);
+        if (strcmp(tokens->items[0], "info") == 0)
+        {
+            info();
         }
-        //add_to_path(tokens->items[0]);      // move this out to its correct place;
+        else if (strcmp(tokens->items[0], "exit") == 0)
+        {
+            fclose(fp); // closes the image and deallocates it from memory
+            return 0;
+        }
+        else if (strcmp(tokens->items[0], "cd") == 0)
+        {
+            cd(tokens->items[1]);
+        }
+        else if (strcmp(tokens->items[0], "ls") == 0)
+        {
+            ls();
+        }
+        // add_to_path(tokens->items[0]); // move this out to its correct place;
         free(input);
         free_tokens(tokens);
     }
@@ -87,23 +184,102 @@ int main(int argc, char * argv[]) {
 
 // helper functions -- to navigate file image
 
-
-
 // commands -- all commands mentioned in part 2-6 (17 cmds)
 
+// Mount
+/* This function basically just takes in the file struct
+bpb as initialized earlier and then prints out all of the info
+based off of the mounted image. The image is opened and read
+by using fread() and fopen() in main.*/
+void info()
+{
+    printf("Position of root: %d\n", bpb.BPB_RootClus);
+    printf("Bytes per sector: %d\n", bpb.BPB_BytesPerSec);
+    printf("Sectors per cluster: %d\n", bpb.BPB_SecsPerClus);
+    printf("# of clusters in data region: %d\n", 5);
+    printf("# of entries in one fat: %d\n", ((bpb.BPB_FATSz32 * bpb.BPB_BytesPerSec) / 4));
+    printf("Size of image (in bytes): %d\n", bpb.BPB_TotSec32 * bpb.BPB_BytesPerSec);
+}
 
+// Navigation
+void cd(char *DIRNAME)
+{
+    /* code template for cd
+    int i;
+    for (i = 0; i < 16; i++)
+    {
+        if (strncmp(dir[i].DIR_Name, "..", 2) == 0)
+        {
+            int offset = LBAToOffset(dir[i].DIR_FirstClusterLow);
+            currentDirectory = dir[i].DIR_FirstClusterLow;
+            fseek(fp, offset, SEEK_SET);
+            fread(&dir[0], 32, 16, fp);
+            return;
+        }
+    }
+    int offset = LBAToOffset(cluster);
+    currentDirectory = cluster;
+    fseek(fp, offset, SEEK_SET);
+    fread(&dir[0], 32, 16, fp);*/
+}
+void ls(void)
+{
+    /*  code template for ls
+    int offset = LBAToOffset(currentDirectory);
+    fseek(fp, offset, SEEK_SET);
+    int i;
+    for (i = 0; i < 16; i++)
+    {
+        fread(&dir[i], 32, 1, fp);
+        if ((dir[i].DIR_Name[0] != (char)0xe5) &&
+            (dir[i].DIR_Attr == 0x1 || dir[i].DIR_Attr == 0x10 || dir[i].DIR_Attr == 0x20))
+        {
+            char *directory = malloc(11);
+            memset(directory, '\0', 11);
+            memcpy(directory, dir[i].DIR_Name, 11);
+            printf("%s\n", directory);
+        }
+    }*/
+}
+
+// Create
+void mkdir(char *DIRNAME) {}
+void creat(char *FILENAME) {}
+void cp(char *FILENAME, unsigned int TO) {}
+
+// Read
+void open(char *FILENAME, int FLAGS) {}
+void close(char *FILENAME) {}
+void lsof(void) {}
+void size(char *FILENAME) {}
+void lseek(char *FILENAME, unsigned int OFFSET) {}
+void read(char *FILENAME, unsigned int size) {}
+
+// Update
+void write(char *FILENAME, char *STRING) {}
+// void rename(char *FILENAME, char *NEW_FILENAME) {}
+
+// Delete
+void rm(char *FILENAME) {}
+void rmdir(char *DIRNAME) {}
 
 // add directory string to cwd path -- helps keep track of where we are in image.
-void add_to_path(char * dir) {
-    if(dir == NULL) {
+void add_to_path(char *dir)
+{
+    if (dir == NULL)
+    {
         return;
     }
-    else if(strcmp(dir, "..") == 0) {     
+    else if (strcmp(dir, "..") == 0)
+    {
         char *last = strrchr(cwd.path, '/');
-        if(last != NULL) {
+        if (last != NULL)
+        {
             *last = '\0';
         }
-    } else if(strcmp(dir, ".") != 0) {
+    }
+    else if (strcmp(dir, ".") != 0)
+    {
         strcat(cwd.path, "/");
         strcat(cwd.path, dir);
     }
@@ -118,45 +294,56 @@ void free_tokens(tokenlist *tokens)
 }
 
 // take care of delimiters {'\"', ' '}
-tokenlist * tokenize(char * input) {
+tokenlist *tokenize(char *input)
+{
     int is_in_string = 0;
-    tokenlist * tokens = (tokenlist *) malloc(sizeof(tokenlist));
+    tokenlist *tokens = (tokenlist *)malloc(sizeof(tokenlist));
     tokens->size = 0;
 
-    tokens->items = (char **) malloc(sizeof(char *));
-    char ** temp;
+    tokens->items = (char **)malloc(sizeof(char *));
+    char **temp;
     int resizes = 1;
-    char * token = input;
+    char *token = input;
 
-    for(; *input != '\0'; input++) {
-        if(*input == '\"' && !is_in_string) {
+    for (; *input != '\0'; input++)
+    {
+        if (*input == '\"' && !is_in_string)
+        {
             is_in_string = 1;
             token = input + 1;
-        } else if(*input == '\"' && is_in_string) {
+        }
+        else if (*input == '\"' && is_in_string)
+        {
             *input = '\0';
             add_token(tokens, token);
-            while(*(input + 1) == ' ') {
+            while (*(input + 1) == ' ')
+            {
                 input++;
             }
             token = input + 1;
-            is_in_string = 0;                    
-        } else if(*input == ' ' && !is_in_string) {
+            is_in_string = 0;
+        }
+        else if (*input == ' ' && !is_in_string)
+        {
             *input = '\0';
-            while(*(input + 1) == ' ') {
+            while (*(input + 1) == ' ')
+            {
                 input++;
             }
             add_token(tokens, token);
             token = input + 1;
         }
     }
-    if(is_in_string) {
+    if (is_in_string)
+    {
         printf("error: string not properly enclosed.\n");
         tokens->size = -1;
         return tokens;
     }
 
     // add in last token before null character.
-    if(*token != '\0') {
+    if (*token != '\0')
+    {
         add_token(tokens, token);
     }
 
@@ -166,15 +353,16 @@ tokenlist * tokenize(char * input) {
 void add_token(tokenlist *tokens, char *item)
 {
     int i = tokens->size;
-    tokens->items = (char **) realloc(tokens->items, (i + 2) * sizeof(char *));
-    tokens->items[i] = (char *) malloc(strlen(item) + 1);
+    tokens->items = (char **)realloc(tokens->items, (i + 2) * sizeof(char *));
+    tokens->items[i] = (char *)malloc(strlen(item) + 1);
     tokens->items[i + 1] = NULL;
     strcpy(tokens->items[i], item);
     tokens->size += 1;
 }
 
-char * get_input() {
-    char * buf = (char *) malloc(sizeof(char) * BUFSIZE);
+char *get_input()
+{
+    char *buf = (char *)malloc(sizeof(char) * BUFSIZE);
     memset(buf, 0, BUFSIZE);
     char c;
     int len = 0;
@@ -182,31 +370,37 @@ char * get_input() {
 
     int is_leading_space = 1;
 
-    while((c = fgetc(stdin)) != '\n' && !feof(stdin)) {
+    while ((c = fgetc(stdin)) != '\n' && !feof(stdin))
+    {
 
         // remove leading spaces.
-        if(c != ' ') {
+        if (c != ' ')
+        {
             is_leading_space = 0;
-        } else if(is_leading_space) {
+        }
+        else if (is_leading_space)
+        {
             continue;
         }
-        
+
         buf[len] = c;
 
-        if(++len >= (BUFSIZE * resizes)) {
-            buf = (char *) realloc(buf, (BUFSIZE * ++resizes) + 1);
+        if (++len >= (BUFSIZE * resizes))
+        {
+            buf = (char *)realloc(buf, (BUFSIZE * ++resizes) + 1);
             memset(buf + (BUFSIZE * (resizes - 1)), 0, BUFSIZE);
-        }        
+        }
     }
     buf[len + 1] = '\0';
 
     // remove trailing spaces.
-    char * end = &buf[len - 1];
+    char *end = &buf[len - 1];
 
-    while(*end == ' ') {
+    while (*end == ' ')
+    {
         *end = '\0';
         end--;
-    }   
+    }
 
     return buf;
 }
