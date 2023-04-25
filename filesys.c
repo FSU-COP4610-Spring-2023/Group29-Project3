@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
         {
             info();
         }
-        else if (strcmp(tokens->items[0], "exit" == 0))
+        else if (strcmp(tokens->items[0], "exit") == 0)
         {
             fclose(fp); // closes the image and deallocates it from memory
             return 0;
@@ -165,11 +165,12 @@ based off of the mounted image. The image is opened and read
 by using fread() and fopen() in main.*/
 void info()
 {
-    printf("BPB_BytesPerSec: %d \n", bpb.BPB_BytesPerSec);
-    printf("BPB_SecsPerClus: %d \n ", bpb.BPB_SecsPerClus);
-    printf("BPB_RsvdSecCnt: %d \n", bpb.BPB_RsvdSecCnt);
-    printf("BPB_NumFATs: %d \n", bpb.BPB_NumFATs);
-    printf("BPB_FATSz32: %d \n", bpb.BPB_FATSz32);
+    printf("Position of root: %d\n", bpb.BPB_RootClus);
+    printf("Bytes per sector: %d\n", bpb.BPB_BytesPerSec);
+    printf("Sectors per cluster: %d\n", bpb.BPB_SecsPerClus);
+    printf("# of clusters in data region: %d\n", 5);
+    printf("# of entries in one fat: %d\n", ((bpb.BPB_FATSz32 * bpb.BPB_BytesPerSec) / 4));
+    printf("Size of image (in bytes): %d\n", bpb.BPB_TotSec32 * bpb.BPB_BytesPerSec);
 }
 
 // Navigation
