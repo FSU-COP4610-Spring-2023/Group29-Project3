@@ -89,7 +89,7 @@ char *get_input();
 void add_token(tokenlist *tokens, char *item);
 void add_to_path(char *dir);
 void info();
-void exit();
+// void exit();
 void cd(char *DIRNAME);
 void ls(void);
 void mkdir(char *DIRNAME);
@@ -102,7 +102,7 @@ void size(char *FILENAME);
 void lseek(char *FILENAME, unsigned int OFFSET);
 void read(char *FILENAME, unsigned int size);
 void write(char *FILENAME, char *STRING);
-void rename(char *FILENAME, char *NEW_FILENAME);
+// void rename(char *FILENAME, char *NEW_FILENAME);
 void rm(char *FILENAME);
 void rmdir(char *DIRNAME);
 
@@ -113,13 +113,6 @@ BPB bpb;  // boot sector information
 
 int main(int argc, char *argv[])
 {
-    // check argv and print
-    if (argc == 2)
-    {
-        printf("%s", argv[0]);
-        printf("%s", argv[1]);
-    }
-
     // error checking for number of arguments.
     if (argc != 2)
     {
@@ -134,19 +127,19 @@ int main(int argc, char *argv[])
     }
     // obtain important information from bpb as well as initialize any important global variables
     memset(cwd.path, 0, PATH_SIZE);
-
+    fread(&bpb, sizeof(BPB), 1, fp);
     // parser
     char *input;
 
     while (1)
     {
-        printf("%s/>", cwd.path);
+        printf("%s", argv[1]);
+        printf("%s/> ", cwd.path);
         input = get_input();
         tokenlist *tokens = tokenize(input);
-        printf("tokens size: %d\n", tokens->size);
-        for (int i = 0; i < tokens->size; i++)
+        if (strcmp(tokens->items[0], "info") == 0)
         {
-            printf("token %d: %s\n", i, tokens->items[i]);
+            info();
         }
         // add_to_path(tokens->items[0]);      // move this out to its correct place;
         free(input);
@@ -161,8 +154,19 @@ int main(int argc, char *argv[])
 // commands -- all commands mentioned in part 2-6 (17 cmds)
 
 // Mount
-void info() {}
-void exit() {}
+/* This function basically just takes in the file struct
+bpb as initialized earlier and then prints out all of the info
+based off of the mounted image. The image is opened and read
+by using fread() and fopen() in main.*/
+void info()
+{
+    printf("BPB_BytesPerSec: %d \n", bpb.BPB_BytesPerSec);
+    printf("BPB_SecsPerClus: %d \n ", bpb.BPB_SecsPerClus);
+    printf("BPB_RsvdSecCnt: %d \n", bpb.BPB_RsvdSecCnt);
+    printf("BPB_NumFATs: %d \n", bpb.BPB_NumFATs);
+    printf("BPB_FATSz32: %d \n", bpb.BPB_FATSz32);
+}
+// void exit() {}
 
 // Navigation
 void cd(char *DIRNAME) {}
@@ -183,7 +187,7 @@ void read(char *FILENAME, unsigned int size) {}
 
 // Update
 void write(char *FILENAME, char *STRING) {}
-void rename(char *FILENAME, char *NEW_FILENAME) {}
+// void rename(char *FILENAME, char *NEW_FILENAME) {}
 
 // Delete
 void rm(char *FILENAME) {}
