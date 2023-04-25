@@ -89,7 +89,6 @@ char *get_input();
 void add_token(tokenlist *tokens, char *item);
 void add_to_path(char *dir);
 void info();
-// void exit();
 void cd(char *DIRNAME);
 void ls(void);
 void mkdir(char *DIRNAME);
@@ -125,12 +124,13 @@ int main(int argc, char *argv[])
         printf("%s does not exist\n.", argv[1]);
         return -1;
     }
+
     // obtain important information from bpb as well as initialize any important global variables
     memset(cwd.path, 0, PATH_SIZE);
     fread(&bpb, sizeof(BPB), 1, fp);
+
     // parser
     char *input;
-
     while (1)
     {
         printf("%s", argv[1]);
@@ -141,7 +141,12 @@ int main(int argc, char *argv[])
         {
             info();
         }
-        // add_to_path(tokens->items[0]);      // move this out to its correct place;
+        else if (strcmp(tokens->items[0], "exit" == 0))
+        {
+            fclose(fp); // closes the image and deallocates it from memory
+            return 0;
+        }
+        // add_to_path(tokens->items[0]); // move this out to its correct place;
         free(input);
         free_tokens(tokens);
     }
@@ -166,7 +171,6 @@ void info()
     printf("BPB_NumFATs: %d \n", bpb.BPB_NumFATs);
     printf("BPB_FATSz32: %d \n", bpb.BPB_FATSz32);
 }
-// void exit() {}
 
 // Navigation
 void cd(char *DIRNAME) {}
