@@ -17,7 +17,7 @@ FILE *fp2;
 
 // data structures for FAT32
 // Hint: BPB, DIR Entry, Open File Table -- how will you structure it?
-typedef struct __attribute__((packed))
+/*typedef struct __attribute__((packed))
 {
     unsigned char DIR_Name[11];
     unsigned char DIR_Attr;
@@ -31,6 +31,15 @@ typedef struct __attribute__((packed))
     unsigned short DIR_WrtDate;
     unsigned short DIR_FstClusLo;
     unsigned int DIR_FileSize;
+} DirEntry;*/
+
+struct __attribute__((__packed__))
+{
+    unsigned char DIR_Name[11]; // directory name
+    unsigned char DIR_Attr;     // directory attribute count
+    unsigned short DIR_FirstClusterHigh;
+    unsigned short DIR_FirstClusterLow;
+    unsigned int DIR_FileSize; // directory size
 } DirEntry;
 
 typedef struct __attribute__((packed))
@@ -109,6 +118,7 @@ void rmdir(char *DIRNAME);
 CWD cwd;
 FILE *fp; // file pointers
 BPB bpb;  // boot sector information
+DirEntry currentEntry;
 
 int main(int argc, char *argv[])
 {
@@ -146,6 +156,14 @@ int main(int argc, char *argv[])
             fclose(fp); // closes the image and deallocates it from memory
             return 0;
         }
+        else if (strcmp(tokens->items[0], "cd") == 0)
+        {
+            cd(tokens->items[1]);
+        }
+        else if (strcmp(tokens->items[0], "ls") == 0)
+        {
+            ls();
+        }
         // add_to_path(tokens->items[0]); // move this out to its correct place;
         free(input);
         free_tokens(tokens);
@@ -174,8 +192,45 @@ void info()
 }
 
 // Navigation
-void cd(char *DIRNAME) {}
-void ls(void) {}
+void cd(char *DIRNAME)
+{
+    /* code template for cd
+    int i;
+    for (i = 0; i < 16; i++)
+    {
+        if (strncmp(dir[i].DIR_Name, "..", 2) == 0)
+        {
+            int offset = LBAToOffset(dir[i].DIR_FirstClusterLow);
+            currentDirectory = dir[i].DIR_FirstClusterLow;
+            fseek(fp, offset, SEEK_SET);
+            fread(&dir[0], 32, 16, fp);
+            return;
+        }
+    }
+    int offset = LBAToOffset(cluster);
+    currentDirectory = cluster;
+    fseek(fp, offset, SEEK_SET);
+    fread(&dir[0], 32, 16, fp);*/
+}
+void ls(void)
+{
+    /*  code template for ls
+    int offset = LBAToOffset(currentDirectory);
+    fseek(fp, offset, SEEK_SET);
+    int i;
+    for (i = 0; i < 16; i++)
+    {
+        fread(&dir[i], 32, 1, fp);
+        if ((dir[i].DIR_Name[0] != (char)0xe5) &&
+            (dir[i].DIR_Attr == 0x1 || dir[i].DIR_Attr == 0x10 || dir[i].DIR_Attr == 0x20))
+        {
+            char *directory = malloc(11);
+            memset(directory, '\0', 11);
+            memcpy(directory, dir[i].DIR_Name, 11);
+            printf("%s\n", directory);
+        }
+    }*/
+}
 
 // Create
 void mkdir(char *DIRNAME) {}
