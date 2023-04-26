@@ -33,15 +33,6 @@ FILE *fp2;
     unsigned int DIR_FileSize;
 } DirEntry;*/
 
-struct __attribute__((__packed__))
-{
-    unsigned char DIR_Name[11]; // directory name
-    unsigned char DIR_Attr;     // directory attribute count
-    unsigned short DIR_FirstClusterHigh;
-    unsigned short DIR_FirstClusterLow;
-    unsigned int DIR_FileSize; // directory size
-} DirEntry;
-
 typedef struct __attribute__((packed))
 {
     unsigned char BS_jmpBoot[3];
@@ -75,6 +66,14 @@ typedef struct __attribute__((packed))
     unsigned short Signature_word;
 } BPB;
 
+typedef struct __attribute__((__packed__))
+{
+    unsigned char DIR_Name[11]; // directory name
+    unsigned char DIR_Attr;     // directory attribute count
+    unsigned short DIR_FirstClusterHigh;
+    unsigned short DIR_FirstClusterLow;
+    unsigned int DIR_FileSize; // directory size
+} DirEntry;
 // stack implementaiton -- you will have to implement a dynamic stack
 // Hint: For removal of files/directories
 
@@ -174,6 +173,13 @@ int main(int argc, char *argv[])
 
 // helper functions -- to navigate file image
 
+// converts the LBA address we get from fread() and turns it into an int for offset
+int LBAToOffset(unsigned int sector)
+{
+    if (sector == 0)
+        sector = 2;
+    return ((sector - 2) * bpb.BPB_BytesPerSec) + (bpb.BPB_BytesPerSec * bpb.BPB_RsvdSecCnt) + (bpb.BPB_NumFATs * bpb.BPB_FATSz32 * bpb.BPB_BytesPerSec);
+}
 // commands -- all commands mentioned in part 2-6 (17 cmds)
 
 // Mount
