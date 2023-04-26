@@ -33,15 +33,6 @@ FILE *fp2;
     unsigned int DIR_FileSize;
 } DirEntry;*/
 
-struct __attribute__((__packed__))
-{
-    unsigned char DIR_Name[11]; // directory name
-    unsigned char DIR_Attr;     // directory attribute count
-    unsigned short DIR_FirstClusterHigh;
-    unsigned short DIR_FirstClusterLow;
-    unsigned int DIR_FileSize; // directory size
-} DirEntry;
-
 typedef struct __attribute__((packed))
 {
     unsigned char BS_jmpBoot[3];
@@ -75,6 +66,14 @@ typedef struct __attribute__((packed))
     unsigned short Signature_word;
 } BPB;
 
+typedef struct __attribute__((__packed__))
+{
+    unsigned char DIR_Name[11]; // directory name
+    unsigned char DIR_Attr;     // directory attribute count
+    unsigned short DIR_FirstClusterHigh;
+    unsigned short DIR_FirstClusterLow;
+    unsigned int DIR_FileSize; // directory size
+} DirEntry;
 // stack implementaiton -- you will have to implement a dynamic stack
 // Hint: For removal of files/directories
 
@@ -82,6 +81,7 @@ typedef struct
 {
     char path[PATH_SIZE]; // path string
     // add a variable to help keep track of current working directory in file.
+    int currentCluster;
     // Hint: In the image, where does the first directory entry start?
 } CWD;
 
@@ -184,6 +184,13 @@ int main(int argc, char *argv[])
 
 // helper functions -- to navigate file image
 
+// converts the LBA address we get from fread() and turns it into an int for offset
+int LBAToOffset(unsigned int sector)
+{
+    if (sector == 0)
+        sector = 2;
+    return ((sector - 2) * bpb.BPB_BytesPerSec) + (bpb.BPB_BytesPerSec * bpb.BPB_RsvdSecCnt) + (bpb.BPB_NumFATs * bpb.BPB_FATSz32 * bpb.BPB_BytesPerSec);
+}
 // commands -- all commands mentioned in part 2-6 (17 cmds)
 
 // Mount
@@ -204,42 +211,43 @@ void info()
 // Navigation
 void cd(char *DIRNAME)
 {
-    /* code template for cd
     int i;
-    for (i = 0; i < 16; i++)
-    {
-        if (strncmp(dir[i].DIR_Name, "..", 2) == 0)
-        {
-            int offset = LBAToOffset(dir[i].DIR_FirstClusterLow);
-            currentDirectory = dir[i].DIR_FirstClusterLow;
-            fseek(fp, offset, SEEK_SET);
-            fread(&dir[0], 32, 16, fp);
-            return;
-        }
+    if (strncmp(currentEntry.DIR_Name, "..", 2) == 0)
+    { // finds if it matches then uses the offset to find the directory
+        int offset = LBAToOffset(currentEntry.DIR_FirstClusterLow);
+        cwd.currentCluster = currentEntry.DIR_FirstClusterLow;
+        fseek(fp, offset, SEEK_SET);
+        fread(&currentEntry, 32, 16, fp);
+        return;
     }
-    int offset = LBAToOffset(cluster);
-    currentDirectory = cluster;
+    int offset = LBAToOffset(DIRNAME);
+    cwd.currentCluster = DIRNAME;
+    // change current cluster and reread information
     fseek(fp, offset, SEEK_SET);
-    fread(&dir[0], 32, 16, fp);*/
+    fread(&currentEntry, 32, 16, fp);
 }
+
 void ls(void)
 {
-    /*  code template for ls
-    int offset = LBAToOffset(currentDirectory);
+    int offset = LBAToOffset(cwd.currentCluster);
+    // get offset and then get data
     fseek(fp, offset, SEEK_SET);
-    int i;
+    int i, j;
     for (i = 0; i < 16; i++)
     {
-        fread(&dir[i], 32, 1, fp);
-        if ((dir[i].DIR_Name[0] != (char)0xe5) &&
-            (dir[i].DIR_Attr == 0x1 || dir[i].DIR_Attr == 0x10 || dir[i].DIR_Attr == 0x20))
+        fread(&currentEntry, sizeof(DirEntry), 1, fp);
+        // iterate through data structure
+        if (currentEntry.DIR_Attr == 0x0F || currentEntry.DIR_Name == 0x00)
         {
-            char *directory = malloc(11);
-            memset(directory, '\0', 11);
-            memcpy(directory, dir[i].DIR_Name, 11);
-            printf("%s\n", directory);
+            for (j = 0; j < 11; j++)
+            {
+                if (currentEntry.DIR_Name[j] == 0x20)
+                    currentEntry.DIR_Name[j] = 0x00;
+                // iterate through entries in the cluster and print
+            }
+            printf("%s \n", currentEntry.DIR_Name);
         }
-    }*/
+    }
 }
 
 // Create
