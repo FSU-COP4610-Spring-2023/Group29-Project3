@@ -11,7 +11,9 @@
 #define OPEN_FILE_TABLE_SIZE 10 // max files for files.
 #define MAX_NAME_LENGTH 11      // 11 in total but 3 for extensions, we only use 8.
 
-//FILE *fp;
+FILE *fp;
+FILE *fp1;
+FILE *fp2;
 
 // data structures for FAT32
 // Hint: BPB, DIR Entry, Open File Table -- how will you structure it?
@@ -135,6 +137,13 @@ int firstDataSector;
 long firstDataSectorOffset;
 File openFiles[10];
 int numFilesOpen = 0;
+
+// These variables should be all we need for accessing, modifying, and working with the FAT32 files
+// Partition_LBA_Begin can be found using the Microsoft docs and is essential to finding proper locations
+/*unsigned long fat_begin_lba = bpb.Partition_LBA_Begin + bpb.BPB_RsvdSecCnt;
+unsigned long cluster_begin_lba = bpb.Partition_LBA_Begin + bpb.BPB_RsvdSecCnt + (bpb.BPB_NumFATs * bpb.BPB_FATSz32);
+unsigned char sectors_per_cluster = bpb.BPB_SecsPerClus;
+unsigned long root_dir_first_cluster = bpb.BPB_RootClus;*/
 
 int main(int argc, char *argv[])
 {
