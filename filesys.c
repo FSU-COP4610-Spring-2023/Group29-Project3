@@ -11,9 +11,7 @@
 #define OPEN_FILE_TABLE_SIZE 10 // max files for files.
 #define MAX_NAME_LENGTH 11      // 11 in total but 3 for extensions, we only use 8.
 
-FILE *fp;
-FILE *fp1;
-FILE *fp2;
+//FILE *fp;
 
 // data structures for FAT32
 // Hint: BPB, DIR Entry, Open File Table -- how will you structure it?
@@ -82,8 +80,20 @@ typedef struct
     char path[PATH_SIZE]; // path string
     // add a variable to help keep track of current working directory in file.
     int currentCluster;
+    long byteOffset;
+    long rootOffset;
     // Hint: In the image, where does the first directory entry start?
+
 } CWD;
+
+typedef struct{
+    char* path;
+    DirEntry dirEntry;
+    unsigned int offset;
+    unsigned int firstCluster; // First cluster location
+    unsigned int firstClusterOffset; // Offset of first cluster in bytes
+    int mode; // 2=rw, 1=w, 0=r, -1=not open (i.e, -1 is a "free" spot)
+} File;
 
 typedef struct
 {
@@ -119,19 +129,15 @@ CWD cwd;
 FILE *fp; // file pointers
 BPB bpb;  // boot sector information
 DirEntry currentEntry;
+//Global variables from supplementary slides
+int rootDirSectors;
+int firstDataSector;
+long firstDataSectorOffset;
+File openFiles[10];
+int numFilesOpen = 0;
 
-<<<<<<< HEAD
-int main(int argc, char * argv[]) {
-    // check argv and print
-    /*if(argc == 2){
-        printf("%s", argv[0]);
-        printf("%s", argv[1]);
-    }*/
-    
-=======
 int main(int argc, char *argv[])
 {
->>>>>>> f625773dc2e84214e587e34007ed0c83e201950a
     // error checking for number of arguments.
     if (argc != 2)
     {
@@ -148,7 +154,14 @@ int main(int argc, char *argv[])
     // obtain important information from bpb as well as initialize any important global variables
     memset(cwd.path, 0, PATH_SIZE);
     fread(&bpb, sizeof(BPB), 1, fp);
-
+    rootDirSectors = ((bpb.BPB_RootEntCnt * 32) + (bpb.BPB_BytesPerSec - 1)) / bpb.BPB_BytesPerSec;
+    firstDataSector = bpb.BPB_RsvdSecCnt + (bpb.BPB_NumFATs * bpb.BPB_FATSz32) + rootDirSectors;
+    firstDataSectorOffset = firstDataSector * bpb.BPB_BytesPerSec;
+    cwd.rootOffset = firstDataSectorOffset;
+    cwd.byteOffset = cwd.rootOffset;
+    cwd.currentCluster = bpb.BPB_RootClus;
+    memset(cwd.path, 0, PATH_SIZE);
+    //strcat(cwd.path, argv[1]);
     // parser
     char *input;
     while (1)
@@ -168,11 +181,42 @@ int main(int argc, char *argv[])
         }
         else if (strcmp(tokens->items[0], "cd") == 0)
         {
-            cd(tokens->items[1]);
+            if(tokens->items[1] != NULL)
+            {
+                cd(tokens->items[1]);
+            }
+            else
+            {
+                printf("Error: Must enter directory to switch to.\n");
+            }
         }
         else if (strcmp(tokens->items[0], "ls") == 0)
         {
             ls();
+        }
+        else if (strcmp(tokens->items[0], "mkdir") == 0)
+        {
+            if(tokens->items[1] != NULL)
+            {
+                mkdir(tokens->items[1]);
+            }
+            else
+            {
+                printf("Error: Must enter name of directory.");
+            }
+            
+        }
+        else if (strcmp(tokens->items[0], "creat") == 0)
+        {
+            if(tokens->items[1] != NULL)
+            {
+                creat(tokens->items[1]);
+            }
+            else
+            {
+                printf("Error: Must enter name of directory.");
+            }
+            
         }
         // add_to_path(tokens->items[0]); // move this out to its correct place;
         free(input);
@@ -200,10 +244,12 @@ based off of the mounted image. The image is opened and read
 by using fread() and fopen() in main.*/
 void info()
 {
+    int totalDataSectors = bpb.BPB_TotSec32 - (bpb.BPB_RsvdSecCnt + (bpb.BPB_NumFATs * bpb.BPB_FATSz32) + rootDirSectors);
+    int totalClusters = totalDataSectors / bpb.BPB_SecsPerClus;
     printf("Position of root: %d\n", bpb.BPB_RootClus);
     printf("Bytes per sector: %d\n", bpb.BPB_BytesPerSec);
     printf("Sectors per cluster: %d\n", bpb.BPB_SecsPerClus);
-    printf("# of clusters in data region: %d\n", 5);
+    printf("# of clusters in data region: %d\n", totalClusters);
     printf("# of entries in one fat: %d\n", ((bpb.BPB_FATSz32 * bpb.BPB_BytesPerSec) / 4));
     printf("Size of image (in bytes): %d\n", bpb.BPB_TotSec32 * bpb.BPB_BytesPerSec);
 }
@@ -251,9 +297,18 @@ void ls(void)
 }
 
 // Create
-void mkdir(char *DIRNAME) {}
-void creat(char *FILENAME) {}
-void cp(char *FILENAME, unsigned int TO) {}
+void mkdir(char *DIRNAME) 
+{
+    
+}
+void creat(char *FILENAME) 
+{
+
+}
+void cp(char *FILENAME, unsigned int TO) 
+{
+
+}
 
 // Read
 void open(char *FILENAME, int FLAGS) {}
