@@ -259,7 +259,7 @@ int main(int argc, char *argv[])
         }
         else if (strcmp(tokens->items[0], "lseek") == 0)
         {
-            lseek(tokens->items[1], tokens->items[2]);
+            lseek(tokens->items[1], atoi(tokens->items[2]));
         }
         else if (strcmp(tokens->items[0], "read") == 0)
         {
@@ -693,7 +693,7 @@ void open(char *FILENAME, int FLAGS)
 
 void close(char *FILENAME)
 {
-    if (locate_directory(FILENAME) == 1)
+    if (locate_directory(FILENAME) == -1)
     {
         for (int i = 0; i < 10; i++)
         {
@@ -751,7 +751,21 @@ void size(char *FILENAME)
         printf("%s %d %s\n", "File is", currentEntry.DIR_FileSize, "bytes");
     }
 }
-void lseek(char *FILENAME, unsigned int OFFSET) {}
+void lseek(char *FILENAME, unsigned int OFFSET)
+{
+    // Find the file in the list of opened files
+    for (int i = 0; i < 10; i++)
+    {
+        if (strcmp(files_opened[i].directoryEntry.DIR_Name, FILENAME) == 0)
+        {
+            // Update the file offset
+            files_opened[i].offset = OFFSET;
+            printf("File offset for %s set to %d bytes\n", FILENAME, OFFSET);
+            return;
+        }
+    }
+    printf("File %s not found or not opened\n", FILENAME);
+}
 void read(char *FILENAME, unsigned int size) {}
 
 // Update
