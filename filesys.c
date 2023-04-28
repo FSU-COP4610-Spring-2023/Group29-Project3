@@ -7,6 +7,7 @@
 
 #define BUFSIZE 40
 
+#define BYTES_PER_DIR_ENTRY 32  // number of bytes in a directory entry
 #define PATH_SIZE 4096          // max possible size for path string.
 #define OPEN_FILE_TABLE_SIZE 10 // max files for files.
 #define MAX_NAME_LENGTH 11      // 11 in total but 3 for extensions, we only use 8.
@@ -537,7 +538,59 @@ void creat(char *FILENAME)
 void cp(char *FILENAME, unsigned int TO) {}
 
 // Read
-void open(char *FILENAME, int FLAGS) {}
+void open(char *FILENAME, int FLAGS) {
+    fseek(fp, (first_data_sector + ((currentCluster - 2) * bpb.BPB_SecsPerClus)), SEEK_SET);
+    struct DirEntry entry;
+    bool found_file = false;
+    while (fread(&entry, BYTES_PER_DIR_ENTRY, 1, fp) == 1) {
+        if (entry.DIR_Name[0] == 0x00) {
+            // This entry and all subsequent entries are unused
+            break;
+        } else if (entry.DIR_Name[0] == 0xE5) {
+            // This entry is unused
+            continue;
+        } else if (entry.DIR_Attr == 0x0F) {
+            // This is a long filename entry
+            continue;
+        } else {
+            // This is a regular file or directory entry
+            char filename[11];
+            memset(filename, 0, sizeof(filename));
+            strncpy(filename, entry.DIR_Name, 11);
+            if (strcmp(filename, argv[2]) == 0) {
+                found_file = true;
+                break;
+            }
+        }
+    }
+	
+    if (!found_file) {
+        printf("File not found: %s\n", argv[2]);
+        fclose(fp);
+        return -1;
+    }
+
+    // Open the file and seek to the start of its data
+    uint32_t cluster = entry.DIR_FstClusLo;
+	unsigned int CLUSTER_SIZE = (BPB_BytesPerSec * BPB_SecsPerClus);
+    fseek(fp, (cluster - 2) * CLUSTER_SIZE, SEEK_SET);
+	
+    printf("File contents:\n");
+
+    // Read and print each cluster of the file's data
+    while (cluster < 0x0FFFFFF8) {
+        uint8_t buffer[CLUSTER_SIZE];
+        fread(buffer, CLUSTER_SIZE, 1, fp);
+        printf("%.*s", CLUSTER_SIZE, buffer);
+        cluster = *((uint32_t *) buffer + (CLUSTER_SIZE / 4) - 1);
+        fseek(fp, (cluster - 2) * CLUSTER_SIZE, SEEK_SET);
+    }
+
+    fclose(fp);
+
+    return 0;
+}
+}
 void close(char *FILENAME) {}
 void lsof(void) {}
 
