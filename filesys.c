@@ -181,12 +181,11 @@ int main(int argc, char *argv[])
     cwd.cluster = bpb.BPB_RootClus;
 
     memset(cwd.path, 0, PATH_SIZE);
-
+    strcat(cwd.path, argv[1]);
     // parser
     char *input;
     while (1)
     {
-        printf("%s", argv[1]);
         printf("%s/> ", cwd.path);
         input = get_input();
         tokenlist *tokens = tokenize(input);
@@ -637,11 +636,11 @@ void open(char *FILENAME, int FLAGS)
     {
         for (int i = 0; i < 10; i++)
         {
-            if (files_opened[i].mode == -1)
+            if (files_opened[i].mode == 0)
             {
-                unsigned short Hi = currentEntry.DIR_FstClusHi;
-                unsigned short Lo = currentEntry.DIR_FstClusLo;
-                unsigned int cluster = (Hi << 8) | Lo;
+                unsigned short High = currentEntry.DIR_FstClusHi;
+                unsigned short Low = currentEntry.DIR_FstClusLo;
+                unsigned int cluster = (High << 8) | Low;
                 unsigned long clusterOffset = (first_data_sector + ((cluster - 2) * bpb.BPB_SecsPerClus)) * bpb.BPB_BytesPerSec;
                 if (cluster == 0)
                 { // Edge case of ".."
@@ -649,22 +648,13 @@ void open(char *FILENAME, int FLAGS)
                     clusterOffset = cwd.rootOffset;
                 }
                 strcpy(files_opened[i].path, cwd.path);
+                printf("%s\n", files_opened[i].path);
                 files_opened[i].offset = 0;
                 files_opened[i].directoryEntry = currentEntry;
                 files_opened[i].first_cluster = cluster;
                 files_opened[i].first_cluster_offset = clusterOffset;
-                if (strcmp(FLAGS, "-rw"))
-                {
-                    files_opened[i].mode = 3;
-                }
-                else if (strcmp(FLAGS, "-w"))
-                {
-                    files_opened[i].mode = 2;
-                }
-                else if (strcmp(FLAGS, "-r"))
-                {
-                    files_opened[i].mode = 1;
-                }
+                files_opened[i].mode = 3;
+                printf("%s\n", FLAGS);
                 break;
             }
         }
@@ -681,6 +671,7 @@ void close(char *FILENAME)
             if (files_opened[i].mode != 0 && strcmp(files_opened[i].path, FILENAME) == 0)
             {
                 files_opened[i].mode = 0;
+                printf("CLOSED SUCCESSFULYLKY");
             }
         }
     }
