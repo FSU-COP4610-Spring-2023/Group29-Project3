@@ -320,34 +320,14 @@ int find_first_available_cluster()
     int first_cluster = cwd.cluster;
     int num_clusters = bpb.BPB_TotSec32;
     // Iterate through the FAT entries until we find an unallocated cluster
-    /*for (int i = first_cluster; i < first_cluster + num_clusters; i++)
+    for (int i = first_cluster; i < first_cluster + num_clusters; i++)
     {
         unsigned int fat_entry = (bpb.BPB_RsvdSecCnt * bpb.BPB_BytesPerSec + (cwd.cluster * 4));
         if (fat_entry == 0)
         {
             cluster = i;
-            return cluster;
+            break;
         }
-    }*/
-    for (num_clusters; first_cluster < num_clusters; num_clusters++)
-    {
-        // move to the first byte of the cluster
-        fseek(fp, (first_data_sector + ((first_cluster - 2) * bpb.BPB_SecsPerClus)) * bpb.BPB_BytesPerSec, SEEK_SET);
-        /*for (i = 0; i < (bpb.BPB_BytesPerSec * bpb.BPB_SecsPerClus / 32); i++)
-        {
-            fread(&currentEntry, sizeof(DirEntry), 1, fp);
-            if (currentEntry.DIR_Name[0] == 0x00)
-            {
-                fseek(fp, -sizeof(DirEntry), SEEK_CUR);
-                fwrite(&newEntry, sizeof(DirEntry), 1, fp);
-                seek(fp, originalPosition, SEEK_SET);
-                return;
-            }
-        }*/
-        printf("\n");
-        // move to fat entry offset
-        fseek(fp, ((bpb.BPB_RsvdSecCnt * bpb.BPB_BytesPerSec) + (first_cluster * 4)), SEEK_SET);
-        fread(&first_cluster, sizeof(int), 1, fp);
     }
     return cluster;
 }
@@ -487,6 +467,50 @@ void ls(void)
 // Create
 void mkdir(char *DIRNAME)
 {
+    if (locateDirectory(DIRNAME) != 1)
+    {
+        printf("File already exists\n");
+        return;
+    }
+    else
+    {
+        int i;
+        unsigned long originalPosition = ftell(fp);
+        // Create the file entry
+        DirEntry new_entry;
+        // Initialize the entry with zeroes
+        memset(&new_entry, 0, sizeof(DirEntry));
+        // Copy the filename into the entry
+        memcpy(new_entry.DIR_Name, DIRNAME, strlen(DIRNAME));
+        // 0x10 means directory instead of a file
+        new_entry.DIR_Attr = 0x10;
+        // Set the first cluster to the first free cluster
+        new_entry.DIR_FstClusLo = 0x0;
+        // Set the file size to 0
+        new_entry.DIR_FileSize = 0x0;
+        unsigned long currentCluster = cwd.cluster;
+        unsigned long numSectors = bpb.BPB_TotSec32;
+        // here we use the bread and butter of directory navigation
+        for (numSectors; currentCluster < numSectors; numSectors++)
+        {
+            // move to the first byte of the cluster
+            fseek(fp, (first_data_sector + ((currentCluster - 2) * bpb.BPB_SecsPerClus)) * bpb.BPB_BytesPerSec, SEEK_SET);
+            for (i = 0; i < (bpb.BPB_BytesPerSec * bpb.BPB_SecsPerClus / 32); i++)
+            {
+                fread(&currentEntry, sizeof(DirEntry), 1, fp);
+                if (currentEntry.DIR_Name[0] == 0x00)
+                {
+                    fseek(fp, -sizeof(DirEntry), SEEK_CUR);
+                    fwrite(&new_entry, sizeof(DirEntry), 1, fp);
+                    fseek(fp, originalPosition, SEEK_SET);
+                    // Allocate the first cluster for the new directory
+                    allocate_cluster(new_entry.DIR_FstClusLo);
+                }
+            }
+            printf("directory created successfully\n");
+            return;
+        }
+    }
 }
 
 /* this uses the same search method as locateDirectory() and ls()
@@ -538,33 +562,44 @@ void creat(char *FILENAME)
 void cp(char *FILENAME, unsigned int TO) {}
 
 // Read
-void open(char *FILENAME, int FLAGS) {
-    fseek(fp, (first_data_sector + ((currentCluster - 2) * bpb.BPB_SecsPerClus)), SEEK_SET);
+void open(char *FILENAME, int FLAGS)
+{
+    /*fseek(fp, (first_data_sector + ((currentCluster - 2) * bpb.BPB_SecsPerClus)), SEEK_SET);
     struct DirEntry entry;
     bool found_file = false;
-    while (fread(&entry, BYTES_PER_DIR_ENTRY, 1, fp) == 1) {
-        if (entry.DIR_Name[0] == 0x00) {
+    while (fread(&entry, BYTES_PER_DIR_ENTRY, 1, fp) == 1)
+    {
+        if (entry.DIR_Name[0] == 0x00)
+        {
             // This entry and all subsequent entries are unused
             break;
-        } else if (entry.DIR_Name[0] == 0xE5) {
+        }
+        else if (entry.DIR_Name[0] == 0xE5)
+        {
             // This entry is unused
             continue;
-        } else if (entry.DIR_Attr == 0x0F) {
+        }
+        else if (entry.DIR_Attr == 0x0F)
+        {
             // This is a long filename entry
             continue;
-        } else {
+        }
+        else
+        {
             // This is a regular file or directory entry
             char filename[11];
             memset(filename, 0, sizeof(filename));
             strncpy(filename, entry.DIR_Name, 11);
-            if (strcmp(filename, argv[2]) == 0) {
+            if (strcmp(filename, argv[2]) == 0)
+            {
                 found_file = true;
                 break;
             }
         }
     }
-	
-    if (!found_file) {
+
+    if (!found_file)
+    {
         printf("File not found: %s\n", argv[2]);
         fclose(fp);
         return -1;
@@ -572,25 +607,26 @@ void open(char *FILENAME, int FLAGS) {
 
     // Open the file and seek to the start of its data
     uint32_t cluster = entry.DIR_FstClusLo;
-	unsigned int CLUSTER_SIZE = (BPB_BytesPerSec * BPB_SecsPerClus);
+    unsigned int CLUSTER_SIZE = (BPB_BytesPerSec * BPB_SecsPerClus);
     fseek(fp, (cluster - 2) * CLUSTER_SIZE, SEEK_SET);
-	
+
     printf("File contents:\n");
 
     // Read and print each cluster of the file's data
-    while (cluster < 0x0FFFFFF8) {
+    while (cluster < 0x0FFFFFF8)
+    {
         uint8_t buffer[CLUSTER_SIZE];
         fread(buffer, CLUSTER_SIZE, 1, fp);
         printf("%.*s", CLUSTER_SIZE, buffer);
-        cluster = *((uint32_t *) buffer + (CLUSTER_SIZE / 4) - 1);
+        cluster = *((uint32_t *)buffer + (CLUSTER_SIZE / 4) - 1);
         fseek(fp, (cluster - 2) * CLUSTER_SIZE, SEEK_SET);
     }
 
     fclose(fp);
 
-    return 0;
+    return 0;*/
 }
-}
+
 void close(char *FILENAME) {}
 void lsof(void) {}
 
