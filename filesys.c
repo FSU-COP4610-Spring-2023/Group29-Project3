@@ -104,7 +104,7 @@ char *get_input();
 void add_token(tokenlist *tokens, char *item);
 void add_to_path(char *dir);
 void info();                          // done
-void cd(char *DIRNAME);               // half
+void cd(char *DIRNAME);               // done
 void ls(void);                        // done
 void mkdir(char *DIRNAME);            // half
 void creat(char *FILENAME);           // done
@@ -625,6 +625,7 @@ void cp(char *FILENAME, char *TO)
 void open(char *FILENAME, int FLAGS)
 {
     // Check if the file is already opened
+    locate_directory(FILENAME);
     for (int i = 0; i < 10; i++)
     {
         if (files_opened[i].mode != 0 && strcmp(files_opened[i].path, FILENAME) == 0)
@@ -657,7 +658,7 @@ void open(char *FILENAME, int FLAGS)
                 strcpy(files_opened[i].path, cwd.path);
                 printf("%s\n", files_opened[i].path);
                 files_opened[i].offset = 0;
-                files_opened[i].directoryEntry.DIR_Name[0] = "LONGFILE";
+                files_opened[i].directoryEntry = currentEntry;
                 files_opened[i].first_cluster = cluster;
                 files_opened[i].first_cluster_offset = clusterOffset;
                 files_opened[i].mode = 3;
