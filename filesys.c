@@ -319,7 +319,7 @@ int find_first_available_cluster()
     int first_cluster = cwd.cluster;
     int num_clusters = bpb.BPB_TotSec32;
     // Iterate through the FAT entries until we find an unallocated cluster
-    for (int i = first_cluster; i < first_cluster + num_clusters; i++)
+    /*for (int i = first_cluster; i < first_cluster + num_clusters; i++)
     {
         unsigned int fat_entry = (bpb.BPB_RsvdSecCnt * bpb.BPB_BytesPerSec + (cwd.cluster * 4));
         if (fat_entry == 0)
@@ -327,6 +327,26 @@ int find_first_available_cluster()
             cluster = i;
             return cluster;
         }
+    }*/
+    for (num_clusters; first_cluster < num_clusters; num_clusters++)
+    {
+        // move to the first byte of the cluster
+        fseek(fp, (first_data_sector + ((first_cluster - 2) * bpb.BPB_SecsPerClus)) * bpb.BPB_BytesPerSec, SEEK_SET);
+        /*for (i = 0; i < (bpb.BPB_BytesPerSec * bpb.BPB_SecsPerClus / 32); i++)
+        {
+            fread(&currentEntry, sizeof(DirEntry), 1, fp);
+            if (currentEntry.DIR_Name[0] == 0x00)
+            {
+                fseek(fp, -sizeof(DirEntry), SEEK_CUR);
+                fwrite(&newEntry, sizeof(DirEntry), 1, fp);
+                seek(fp, originalPosition, SEEK_SET);
+                return;
+            }
+        }*/
+        printf("\n");
+        // move to fat entry offset
+        fseek(fp, ((bpb.BPB_RsvdSecCnt * bpb.BPB_BytesPerSec) + (first_cluster * 4)), SEEK_SET);
+        fread(&first_cluster, sizeof(int), 1, fp);
     }
     return cluster;
 }
@@ -468,6 +488,8 @@ void mkdir(char *DIRNAME)
 {
 }
 
+/* this uses the same search method as locateDirectory() and ls()
+but pushes a new directory entry instead of showing what is already there*/
 void creat(char *FILENAME)
 { // Check if a file with the same name already exists
     if (locateDirectory(FILENAME) != 1)
@@ -485,20 +507,31 @@ void creat(char *FILENAME)
         memset(&new_entry, 0, sizeof(DirEntry));
         // Copy the filename into the entry
         memcpy(new_entry.DIR_Name, FILENAME, strlen(FILENAME));
-        // Set the attribute to archive
         new_entry.DIR_Attr = 0x20;
         // Set the first cluster to the first free cluster
-        new_entry.DIR_FstClusLo = find_first_available_cluster();
+        new_entry.DIR_FstClusLo = 0x0;
         // Set the file size to 0
         new_entry.DIR_FileSize = 0x0;
         unsigned long currentCluster = cwd.cluster;
         unsigned long numSectors = bpb.BPB_TotSec32;
         // here we use the bread and butter of directory navigation
-        fseek(fp, -sizeof(DirEntry), SEEK_CUR);
-        fwrite(&new_entry, sizeof(DirEntry), 1, fp);
-        fseek(fp, originalPosition, SEEK_SET);
-        printf("File created successfully\n");
-        return;
+        for (numSectors; currentCluster < numSectors; numSectors++)
+        {
+            // move to the first byte of the cluster
+            fseek(fp, (first_data_sector + ((currentCluster - 2) * bpb.BPB_SecsPerClus)) * bpb.BPB_BytesPerSec, SEEK_SET);
+            for (i = 0; i < (bpb.BPB_BytesPerSec * bpb.BPB_SecsPerClus / 32); i++)
+            {
+                fread(&currentEntry, sizeof(DirEntry), 1, fp);
+                if (currentEntry.DIR_Name[0] == 0x00)
+                {
+                    fseek(fp, -sizeof(DirEntry), SEEK_CUR);
+                    fwrite(&new_entry, sizeof(DirEntry), 1, fp);
+                    fseek(fp, originalPosition, SEEK_SET);
+                }
+            }
+            printf("File created successfully\n");
+            return;
+        }
     }
 }
 void cp(char *FILENAME, unsigned int TO) {}
@@ -507,6 +540,10 @@ void cp(char *FILENAME, unsigned int TO) {}
 void open(char *FILENAME, int FLAGS) {}
 void close(char *FILENAME) {}
 void lsof(void) {}
+
+/* Just prints out the current entry's file size
+after checking if the file is a directory or a
+file and if it exists or not using locateDirectory() */
 void size(char *FILENAME)
 {
     int i = locateDirectory(FILENAME);
