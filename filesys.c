@@ -464,7 +464,10 @@ void ls(void)
 }
 
 // Create
-void mkdir(char *DIRNAME) {}
+void mkdir(char *DIRNAME)
+{
+}
+
 void creat(char *FILENAME)
 { // Check if a file with the same name already exists
     if (locateDirectory(FILENAME) != 1)
@@ -504,7 +507,18 @@ void cp(char *FILENAME, unsigned int TO) {}
 void open(char *FILENAME, int FLAGS) {}
 void close(char *FILENAME) {}
 void lsof(void) {}
-void size(char *FILENAME) {}
+void size(char *FILENAME)
+{
+    int i = locateDirectory(FILENAME);
+    if (i == 1 | i == 0)
+    {
+        printf("%s\n", "Error, is directory or does not exist");
+    }
+    else
+    {
+        printf("%s %d %s\n", "File is", currentEntry.DIR_FileSize, "bytes");
+    }
+}
 void lseek(char *FILENAME, unsigned int OFFSET) {}
 void read(char *FILENAME, unsigned int size) {}
 
