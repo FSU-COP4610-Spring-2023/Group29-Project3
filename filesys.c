@@ -78,7 +78,7 @@ typedef struct
     unsigned int first_cluster;        // First cluster location
     unsigned int first_cluster_offset; // Offset of first cluster in bytes
     unsigned int offset;
-    int mode; //  0 = free, 1 = -r, 2 = -w, 3 = -rw
+    int mode; //  0 = free
 } opened_file;
 
 typedef struct
@@ -103,22 +103,22 @@ void free_tokens(tokenlist *tokens);
 char *get_input();
 void add_token(tokenlist *tokens, char *item);
 void add_to_path(char *dir);
-void info();                          // done
-void cd(char *DIRNAME);               // done
-void ls(void);                        // done
-void mkdir(char *DIRNAME);            // half
-void creat(char *FILENAME);           // done
-void cp(char *FILENAME, char *TO);    // half
-void open(char *FILENAME, int FLAGS); // half
-void close(char *FILENAME);           // done
-void lsof(void);                      // done
-void size(char *FILENAME);
-void lseek(char *FILENAME, unsigned int OFFSET);
-void read(char *FILENAME, unsigned int size);
-void write(char *FILENAME, char *STRING);
-// void rename_file(char *FILENAME, char *NEW_FILENAME);
-void rm(char *FILENAME);
-void rmdir(char *DIRNAME);
+void info();                                     // done
+void cd(char *DIRNAME);                          // done
+void ls(void);                                   // done
+void mkdir(char *DIRNAME);                       // half
+void creat(char *FILENAME);                      // done
+void cp(char *FILENAME, char *TO);               // half
+void open(char *FILENAME, int FLAGS);            // done
+void close(char *FILENAME);                      // done
+void lsof(void);                                 // done
+void size(char *FILENAME);                       // done
+void lseek(char *FILENAME, unsigned int OFFSET); // have to start
+void read(char *FILENAME, unsigned int size);    // have to start
+void write(char *FILENAME, char *STRING);        // have to start
+void rm(char *FILENAME);                         // have to start
+void rmdir(char *DIRNAME);                       // have to start
+// void rename_file(char *FILENAME, char *NEW_FILENAME); // have to start
 
 // global variables
 CWD cwd;
@@ -221,7 +221,29 @@ int main(int argc, char *argv[])
         }
         else if (strcmp(tokens->items[0], "open") == 0)
         {
-            open(tokens->items[1], tokens->items[2]);
+            if (tokens->items[2] != NULL && tokens->items[1] != NULL)
+            {
+                int flags;
+                if (strcmp(tokens->items[2], "-r") == 0)
+                {
+                    flags = 1;
+                }
+                if (strcmp(tokens->items[2], "-w") == 0)
+                {
+                    flags = 2;
+                }
+                if (strcmp(tokens->items[2], "-rw") == 0)
+                {
+                    flags = 3;
+                }
+                if (strcmp(tokens->items[2], "-wr") == 0)
+                {
+                    flags = 4;
+                }
+                open(tokens->items[1], flags);
+            }
+            else
+                printf("Missing file arguments (-r|-w|-rw|-wr)\n");
         }
         else if (strcmp(tokens->items[0], "close") == 0)
         {
@@ -656,13 +678,11 @@ void open(char *FILENAME, int FLAGS)
                     clusterOffset = cwd.rootOffset;
                 }
                 strcpy(files_opened[i].path, cwd.path);
-                printf("%s\n", files_opened[i].path);
                 files_opened[i].offset = 0;
                 files_opened[i].directoryEntry = currentEntry;
                 files_opened[i].first_cluster = cluster;
                 files_opened[i].first_cluster_offset = clusterOffset;
-                files_opened[i].mode = 3;
-                printf("%s\n", FLAGS);
+                files_opened[i].mode = FLAGS;
                 break;
             }
         }
@@ -686,19 +706,32 @@ void close(char *FILENAME)
 }
 void lsof(void)
 {
-    printf("index | file name | mode | offset | path \n");
+    printf("index, file name, mode, offset, path \n");
     for (int i = 0; i < number_files_open; i++)
     {
         if (files_opened[i].mode != 0)
         {
             char *mode;
             if (files_opened[i].mode == 1)
+            {
                 mode = "-r";
+            }
+
             if (files_opened[i].mode == 2)
+            {
                 mode = "-w";
+            }
+
             if (files_opened[i].mode == 3)
+            {
                 mode = "-rw";
-            printf("%d %s %s %d %s\n", i, files_opened[i].directoryEntry.DIR_Name, mode, files_opened[i].offset, files_opened[i].path);
+            }
+
+            if (files_opened[i].mode == 4)
+            {
+                mode = "-wr";
+            }
+            printf("%d, %s, %s, %d, %s\n", i, files_opened[i].directoryEntry.DIR_Name, mode, files_opened[i].offset, files_opened[i].path);
         }
     }
 }
