@@ -17,21 +17,6 @@ FILE *fp2;
 
 // data structures for FAT32
 // Hint: BPB, DIR Entry, Open File Table -- how will you structure it?
-/*typedef struct __attribute__((packed))
-{
-    unsigned char DIR_Name[11];
-    unsigned char DIR_Attr;
-    unsigned char DIR_NTRes;
-    unsigned char DIR_CrtTimeTenth;
-    unsigned short DIR_CrtTime;
-    unsigned short DIR_CrtDate;
-    unsigned short DIR_LastAccDate;
-    unsigned short DIR_FstClusHi;
-    unsigned short DIR_WrtTime;
-    unsigned short DIR_WrtDate;
-    unsigned short DIR_FstClusLo;
-    unsigned int DIR_FileSize;
-} DirEntry;*/
 
 typedef struct __attribute__((packed))
 {
@@ -66,14 +51,22 @@ typedef struct __attribute__((packed))
     unsigned short Signature_word;
 } BPB;
 
-typedef struct __attribute__((__packed__))
+typedef struct __attribute__((packed))
 {
-    unsigned char DIR_Name[11]; // directory name
-    unsigned char DIR_Attr;     // directory attribute count
-    unsigned short DIR_FirstClusterHigh;
-    unsigned short DIR_FirstClusterLow;
-    unsigned int DIR_FileSize; // directory size
+    unsigned char DIR_Name[11];
+    unsigned char DIR_Attr;
+    unsigned char DIR_NTRes;
+    unsigned char DIR_CrtTimeTenth;
+    unsigned short DIR_CrtTime;
+    unsigned short DIR_CrtDate;
+    unsigned short DIR_LastAccDate;
+    unsigned short DIR_FstClusHi;
+    unsigned short DIR_WrtTime;
+    unsigned short DIR_WrtDate;
+    unsigned short DIR_FstClusLo;
+    unsigned int DIR_FileSize;
 } DirEntry;
+
 // stack implementaiton -- you will have to implement a dynamic stack
 // Hint: For removal of files/directories
 
@@ -81,21 +74,11 @@ typedef struct
 {
     char path[PATH_SIZE]; // path string
     // add a variable to help keep track of current working directory in file.
-    int currentCluster;
-    long byteOffset;
-    long rootOffset;
+    unsigned long byteOffset;
+    unsigned long rootOffset;
+    unsigned int cluster;
     // Hint: In the image, where does the first directory entry start?
-
 } CWD;
-
-typedef struct{
-    char* path;
-    DirEntry dirEntry;
-    unsigned int offset;
-    unsigned int firstCluster; // First cluster location
-    unsigned int firstClusterOffset; // Offset of first cluster in bytes
-    int mode; // 2=rw, 1=w, 0=r, -1=not open (i.e, -1 is a "free" spot)
-} File;
 
 typedef struct
 {
@@ -122,7 +105,7 @@ void size(char *FILENAME);
 void lseek(char *FILENAME, unsigned int OFFSET);
 void read(char *FILENAME, unsigned int size);
 void write(char *FILENAME, char *STRING);
-// void rename(char *FILENAME, char *NEW_FILENAME);
+// void rename_file(char *FILENAME, char *NEW_FILENAME);
 void rm(char *FILENAME);
 void rmdir(char *DIRNAME);
 
@@ -131,19 +114,18 @@ CWD cwd;
 FILE *fp; // file pointers
 BPB bpb;  // boot sector information
 DirEntry currentEntry;
-//Global variables from supplementary slides
-int rootDirSectors;
-int firstDataSector;
-long firstDataSectorOffset;
-File openFiles[10];
-int numFilesOpen = 0;
 
 // These variables should be all we need for accessing, modifying, and working with the FAT32 files
+unsigned long fat_begin_lba;
+unsigned long cluster_begin_lba;
+unsigned char sectors_per_cluster;
+unsigned long root_dir_first_cluster;
+unsigned long root_dir_clusters;
+unsigned long first_data_sector;
+unsigned long first_data_sector_offset;
+unsigned long Partition_LBA_Begin;
+unsigned long currentDirectory;
 // Partition_LBA_Begin can be found using the Microsoft docs and is essential to finding proper locations
-/*unsigned long fat_begin_lba = bpb.Partition_LBA_Begin + bpb.BPB_RsvdSecCnt;
-unsigned long cluster_begin_lba = bpb.Partition_LBA_Begin + bpb.BPB_RsvdSecCnt + (bpb.BPB_NumFATs * bpb.BPB_FATSz32);
-unsigned char sectors_per_cluster = bpb.BPB_SecsPerClus;
-unsigned long root_dir_first_cluster = bpb.BPB_RootClus;*/
 
 int main(int argc, char *argv[])
 {
@@ -154,23 +136,39 @@ int main(int argc, char *argv[])
         return -1; // return error indicator if number of args is not 2.
     }
     // read and open argv[1] in file pointer.
-    if ((fp = fopen(argv[1], "r+")) == NULL)
+    fp = fopen(argv[1], "r+");
+    if (fp == NULL)
     { // r+ stands for read,write,append.
         printf("%s does not exist\n.", argv[1]);
         return -1;
     }
 
     // obtain important information from bpb as well as initialize any important global variables
-    memset(cwd.path, 0, PATH_SIZE);
     fread(&bpb, sizeof(BPB), 1, fp);
-    rootDirSectors = ((bpb.BPB_RootEntCnt * 32) + (bpb.BPB_BytesPerSec - 1)) / bpb.BPB_BytesPerSec;
-    firstDataSector = bpb.BPB_RsvdSecCnt + (bpb.BPB_NumFATs * bpb.BPB_FATSz32) + rootDirSectors;
-    firstDataSectorOffset = firstDataSector * bpb.BPB_BytesPerSec;
-    cwd.rootOffset = firstDataSectorOffset;
+    sectors_per_cluster = bpb.BPB_SecsPerClus;
+    root_dir_first_cluster = bpb.BPB_RootClus;
+
+    cluster_begin_lba = bpb.BPB_RsvdSecCnt + (bpb.BPB_NumFATs * bpb.BPB_FATSz32);
+
+    // where Partition_LBA_Begin is the logical block address for the start of the partition
+    // bpb holds the boot sector information
+    // RsvdSecCnt is the # of reserved sectors at the start of the partition (boot sector too)
+    fat_begin_lba = bpb.BPB_RsvdSecCnt;
+    Partition_LBA_Begin = fat_begin_lba + (bpb.BPB_NumFATs * bpb.BPB_FATSz32);
+
+    // sum of the partition start sector and the number of reserved sectors
+    // NumFats is # of FAT tables and FATSz32 is the size of the tables in 'sectors'
+    cluster_begin_lba = Partition_LBA_Begin + bpb.BPB_RsvdSecCnt + (bpb.BPB_NumFATs * bpb.BPB_FATSz32);
+
+    root_dir_clusters = ((bpb.BPB_RootEntCnt * 32) + (bpb.BPB_BytesPerSec - 1)) / bpb.BPB_BytesPerSec;
+    first_data_sector = bpb.BPB_RsvdSecCnt + (bpb.BPB_NumFATs * bpb.BPB_FATSz32) + root_dir_clusters;
+    first_data_sector_offset = first_data_sector * bpb.BPB_BytesPerSec;
+    cwd.rootOffset = first_data_sector_offset;
     cwd.byteOffset = cwd.rootOffset;
-    cwd.currentCluster = bpb.BPB_RootClus;
+    cwd.cluster = bpb.BPB_RootClus;
+
     memset(cwd.path, 0, PATH_SIZE);
-    //strcat(cwd.path, argv[1]);
+
     // parser
     char *input;
     while (1)
@@ -190,14 +188,7 @@ int main(int argc, char *argv[])
         }
         else if (strcmp(tokens->items[0], "cd") == 0)
         {
-            if(tokens->items[1] != NULL)
-            {
-                cd(tokens->items[1]);
-            }
-            else
-            {
-                printf("Error: Must enter directory to switch to.\n");
-            }
+            cd(tokens->items[1]);
         }
         else if (strcmp(tokens->items[0], "ls") == 0)
         {
@@ -205,27 +196,55 @@ int main(int argc, char *argv[])
         }
         else if (strcmp(tokens->items[0], "mkdir") == 0)
         {
-            if(tokens->items[1] != NULL)
-            {
-                mkdir(tokens->items[1]);
-            }
-            else
-            {
-                printf("Error: Must enter name of directory.");
-            }
-            
+            mkdir(tokens->items[1]);
         }
         else if (strcmp(tokens->items[0], "creat") == 0)
         {
-            if(tokens->items[1] != NULL)
-            {
-                creat(tokens->items[1]);
-            }
-            else
-            {
-                printf("Error: Must enter name of directory.");
-            }
-            
+            creat(tokens->items[1]);
+        }
+        else if (strcmp(tokens->items[0], "cp") == 0)
+        {
+            cp(tokens->items[1], tokens->items[2]);
+        }
+        else if (strcmp(tokens->items[0], "open") == 0)
+        {
+            open(tokens->items[1], tokens->items[2]);
+        }
+        else if (strcmp(tokens->items[0], "close") == 0)
+        {
+            close(tokens->items[1]);
+        }
+        else if (strcmp(tokens->items[0], "lsof") == 0)
+        {
+            lsof();
+        }
+        else if (strcmp(tokens->items[0], "size") == 0)
+        {
+            size(tokens->items[1]);
+        }
+        else if (strcmp(tokens->items[0], "lseek") == 0)
+        {
+            lseek(tokens->items[1], tokens->items[2]);
+        }
+        else if (strcmp(tokens->items[0], "read") == 0)
+        {
+            read(tokens->items[1], tokens->items[2]);
+        }
+        else if (strcmp(tokens->items[0], "write") == 0)
+        {
+            write(tokens->items[1], tokens->items[2]);
+        }
+        /*else if (strcmp(tokens->items[0], "rename") == 0)
+        {
+            rename_file(tokens->items[1], tokens->items[2]);
+        }*/
+        else if (strcmp(tokens->items[0], "rm") == 0)
+        {
+            rm(tokens->items[1]);
+        }
+        else if (strcmp(tokens->items[0], "rmdir") == 0)
+        {
+            rmdir(tokens->items[1]);
         }
         // add_to_path(tokens->items[0]); // move this out to its correct place;
         free(input);
@@ -237,6 +256,55 @@ int main(int argc, char *argv[])
 
 // helper functions -- to navigate file image
 
+/* This function does basically the same operations as the ls function
+but instead of printing out all of the information it checks each of
+the entries/clusters to see if they are valid or not, this function
+is essential to the project (some sections were generated by Copilot)*/
+int locateDirectory(char *DIRNAME)
+{
+    int i, j;
+    unsigned long originalPos = ftell(fp);
+    unsigned int currCluster = cwd.cluster;
+    fseek(fp, cwd.byteOffset, SEEK_SET);
+    // while currentCluster < total number of sectors in partition
+    while (currCluster < bpb.BPB_TotSec32)
+    {
+        // move to position of first byte in the cluster
+        fseek(fp, (first_data_sector + ((currCluster - 2) * bpb.BPB_SecsPerClus)) * bpb.BPB_BytesPerSec, SEEK_SET);
+        for (i = 0; i < 16; i++)
+        {
+            // retrieve information about current entry
+            fread(&currentEntry, sizeof(DirEntry), 1, fp);
+            // deleted/does not exist/long file name
+            if (currentEntry.DIR_Attr == 0x0F || currentEntry.DIR_Name == 0x00)
+                continue;
+            for (j = 0; j < 11; j++)
+            {
+                if (currentEntry.DIR_Name[j] == 0x20)
+                    currentEntry.DIR_Name[j] = 0x00;
+            }
+            if (strcmp(currentEntry.DIR_Name, DIRNAME) == 0)
+            {
+                if (currentEntry.DIR_Attr == 0x10)
+                {
+                    // move pointer back to beginning potision
+                    fseek(fp, originalPos, SEEK_SET);
+                    return 0;
+                }
+                else
+                {
+                    // move pointer back to beginning potision
+                    fseek(fp, originalPos, SEEK_SET);
+                    return -1;
+                }
+            }
+        }
+        fseek(fp, (bpb.BPB_RsvdSecCnt * bpb.BPB_BytesPerSec + (currCluster * 4)), SEEK_SET);
+        fread(&currCluster, sizeof(int), 1, fp);
+    }
+    fseek(fp, originalPos, SEEK_SET);
+    return 1;
+}
 // converts the LBA address we get from fread() and turns it into an int for offset
 int LBAToOffset(unsigned int sector)
 {
@@ -244,80 +312,193 @@ int LBAToOffset(unsigned int sector)
         sector = 2;
     return ((sector - 2) * bpb.BPB_BytesPerSec) + (bpb.BPB_BytesPerSec * bpb.BPB_RsvdSecCnt) + (bpb.BPB_NumFATs * bpb.BPB_FATSz32 * bpb.BPB_BytesPerSec);
 }
+
+int find_first_available_cluster()
+{
+    int cluster = -1;
+    int first_cluster = cwd.cluster;
+    int num_clusters = bpb.BPB_TotSec32;
+    // Iterate through the FAT entries until we find an unallocated cluster
+    for (int i = first_cluster; i < first_cluster + num_clusters; i++)
+    {
+        unsigned int fat_entry = (bpb.BPB_RsvdSecCnt * bpb.BPB_BytesPerSec + (cwd.cluster * 4));
+        if (fat_entry == 0)
+        {
+            cluster = i;
+            return cluster;
+        }
+    }
+    return cluster;
+}
+
+unsigned int get_next_cluster(unsigned int current_cluster)
+{
+    unsigned int fat_offset = current_cluster * 4;
+    unsigned int fat_sector = fat_begin_lba + (fat_offset / bpb.BPB_BytesPerSec);
+    unsigned int fat_entry_offset = fat_offset % bpb.BPB_BytesPerSec;
+    unsigned int fat_entry_value;
+
+    fseek(fp, fat_sector * bpb.BPB_BytesPerSec + fat_entry_offset, SEEK_SET);
+    fread(&fat_entry_value, sizeof(fat_entry_value), 1, fp);
+
+    return fat_entry_value & 0x0FFFFFFF;
+}
+
+unsigned int get_current_cluster()
+{
+    unsigned int cluster = (currentEntry.DIR_FstClusLo) | ((currentEntry.DIR_FstClusHi) << 16);
+    if (cluster == 0)
+    {
+        return root_dir_first_cluster;
+    }
+    return cluster;
+}
+
 // commands -- all commands mentioned in part 2-6 (17 cmds)
 
 // Mount
+
 /* This function basically just takes in the file struct
 bpb as initialized earlier and then prints out all of the info
 based off of the mounted image. The image is opened and read
 by using fread() and fopen() in main.*/
 void info()
 {
-    int totalDataSectors = bpb.BPB_TotSec32 - (bpb.BPB_RsvdSecCnt + (bpb.BPB_NumFATs * bpb.BPB_FATSz32) + rootDirSectors);
-    int totalClusters = totalDataSectors / bpb.BPB_SecsPerClus;
+    int clusters = (bpb.BPB_TotSec32 - (bpb.BPB_RsvdSecCnt + (bpb.BPB_NumFATs * bpb.BPB_FATSz32) + root_dir_clusters) / bpb.BPB_SecsPerClus);
     printf("Position of root: %d\n", bpb.BPB_RootClus);
     printf("Bytes per sector: %d\n", bpb.BPB_BytesPerSec);
     printf("Sectors per cluster: %d\n", bpb.BPB_SecsPerClus);
-    printf("# of clusters in data region: %d\n", totalClusters);
+    printf("# of clusters in data region: %d\n", clusters);
     printf("# of entries in one fat: %d\n", ((bpb.BPB_FATSz32 * bpb.BPB_BytesPerSec) / 4));
     printf("Size of image (in bytes): %d\n", bpb.BPB_TotSec32 * bpb.BPB_BytesPerSec);
 }
 
 // Navigation
+
+// cd need some error management on handling going backwards through directories
 void cd(char *DIRNAME)
 {
-    int i;
-    if (strncmp(currentEntry.DIR_Name, "..", 2) == 0)
-    { // finds if it matches then uses the offset to find the directory
-        int offset = LBAToOffset(currentEntry.DIR_FirstClusterLow);
-        cwd.currentCluster = currentEntry.DIR_FirstClusterLow;
-        fseek(fp, offset, SEEK_SET);
-        fread(&currentEntry, 32, 16, fp);
-        return;
+    int exists = locateDirectory(DIRNAME);
+    if (exists == 0)
+    {
+        unsigned int cluster = get_current_cluster();
+        if (cluster == 0)
+        {
+            cwd.byteOffset = first_data_sector_offset;
+            cwd.cluster = bpb.BPB_RootClus;
+        }
+        else
+        {
+            cwd.byteOffset = (first_data_sector + ((cluster - 2) * bpb.BPB_SecsPerClus)) * bpb.BPB_BytesPerSec;
+            cwd.cluster = cluster;
+        }
+
+        if (strcmp(DIRNAME, ".") != 0)
+        {
+            strcat(cwd.path, "/");
+            strcat(cwd.path, DIRNAME);
+        }
+        else if (strcmp(DIRNAME, "..") == 0)
+        {
+            int i = strlen(cwd.path);
+            unsigned char *current = " ";
+            while (strcmp(current, "/") != 0)
+            {
+                cwd.path[i--] = '\0';
+                current = &cwd.path[i];
+            }
+            cwd.path[i] = '\0';
+        }
     }
-    int offset = LBAToOffset(DIRNAME);
-    cwd.currentCluster = DIRNAME;
-    // change current cluster and reread information
-    fseek(fp, offset, SEEK_SET);
-    fread(&currentEntry, 32, 16, fp);
+    else if (exists == -1)
+    {
+        printf("%s is a file not a directory\n", DIRNAME);
+    }
+    else if (exists == 1)
+    {
+        printf("this directory does not exist.\n");
+    }
 }
 
+/* ls iterates through each directory and cluster to get the
+directory names and print them out. This is mainly done by
+taking the main pointer and starting at the beginning
+of the root directory. Once there we iterate through
+for the # of sectors and move to the first byte of
+each cluster to find directory names for each cluster.
+We then move everything back in place so that we can
+use our offsets again for another function. */
 void ls(void)
 {
-    int offset = LBAToOffset(cwd.currentCluster);
-    // get offset and then get data
-    fseek(fp, offset, SEEK_SET);
     int i, j;
-    for (i = 0; i < 16; i++)
+    unsigned long originalPosition = ftell(fp);
+    // Move file pointer to the beginning of the root directory
+    fseek(fp, (((root_dir_first_cluster - 2) * bpb.BPB_SecsPerClus) + cluster_begin_lba), SEEK_SET);
+    unsigned int currentCluster = cwd.cluster;
+    // while currentCluster < total number of sectors in partition
+    unsigned long numSectors = bpb.BPB_TotSec32;
+    for (numSectors; currentCluster < numSectors; numSectors++)
     {
-        fread(&currentEntry, sizeof(DirEntry), 1, fp);
-        // iterate through data structure
-        if (currentEntry.DIR_Attr == 0x0F || currentEntry.DIR_Name == 0x00)
+        // move to the first byte of the cluster
+        fseek(fp, (first_data_sector + ((currentCluster - 2) * bpb.BPB_SecsPerClus)) * bpb.BPB_BytesPerSec, SEEK_SET);
+        for (i = 0; i < 16; i++)
         {
+            // retrieve information about current entry
+            fread(&currentEntry, sizeof(DirEntry), 1, fp);
+            // deleted/does not exist/long file name
+            if (currentEntry.DIR_Attr == 0x0F || currentEntry.DIR_Name[0] == 0x00)
+                continue;
             for (j = 0; j < 11; j++)
             {
                 if (currentEntry.DIR_Name[j] == 0x20)
                     currentEntry.DIR_Name[j] = 0x00;
-                // iterate through entries in the cluster and print
             }
-            printf("%s \n", currentEntry.DIR_Name);
+            printf("%s ", currentEntry.DIR_Name);
         }
+        printf("\n");
+        // move to fat entry offset
+        fseek(fp, ((bpb.BPB_RsvdSecCnt * bpb.BPB_BytesPerSec) + (currentCluster * 4)), SEEK_SET);
+        fread(&currentCluster, sizeof(int), 1, fp);
     }
+    fseek(fp, originalPosition, SEEK_SET);
 }
 
 // Create
-void mkdir(char *DIRNAME) 
-{
-    
+void mkdir(char *DIRNAME) {}
+void creat(char *FILENAME)
+{ // Check if a file with the same name already exists
+    if (locateDirectory(FILENAME) != 1)
+    {
+        printf("File already exists\n");
+        return;
+    }
+    else
+    {
+        int i;
+        unsigned long originalPosition = ftell(fp);
+        // Create the file entry
+        DirEntry new_entry;
+        // Initialize the entry with zeroes
+        memset(&new_entry, 0, sizeof(DirEntry));
+        // Copy the filename into the entry
+        memcpy(new_entry.DIR_Name, FILENAME, strlen(FILENAME));
+        // Set the attribute to archive
+        new_entry.DIR_Attr = 0x20;
+        // Set the first cluster to the first free cluster
+        new_entry.DIR_FstClusLo = find_first_available_cluster();
+        // Set the file size to 0
+        new_entry.DIR_FileSize = 0x0;
+        unsigned long currentCluster = cwd.cluster;
+        unsigned long numSectors = bpb.BPB_TotSec32;
+        // here we use the bread and butter of directory navigation
+        fseek(fp, -sizeof(DirEntry), SEEK_CUR);
+        fwrite(&new_entry, sizeof(DirEntry), 1, fp);
+        fseek(fp, originalPosition, SEEK_SET);
+        printf("File created successfully\n");
+        return;
+    }
 }
-void creat(char *FILENAME) 
-{
-
-}
-void cp(char *FILENAME, unsigned int TO) 
-{
-
-}
+void cp(char *FILENAME, unsigned int TO) {}
 
 // Read
 void open(char *FILENAME, int FLAGS) {}
