@@ -98,7 +98,7 @@ void cd(char *DIRNAME);
 void ls(void);
 void mkdir(char *DIRNAME);
 void creat(char *FILENAME);
-void cp(char *FILENAME, unsigned int TO);
+void cp(char *FILENAME, char *TO);
 void open(char *FILENAME, int FLAGS);
 void close(char *FILENAME);
 void lsof(void);
@@ -307,12 +307,6 @@ int locateDirectory(char *DIRNAME)
     return 1;
 }
 // converts the LBA address we get from fread() and turns it into an int for offset
-int LBAToOffset(unsigned int sector)
-{
-    if (sector == 0)
-        sector = 2;
-    return ((sector - 2) * bpb.BPB_BytesPerSec) + (bpb.BPB_BytesPerSec * bpb.BPB_RsvdSecCnt) + (bpb.BPB_NumFATs * bpb.BPB_FATSz32 * bpb.BPB_BytesPerSec);
-}
 
 int find_first_available_cluster()
 {
@@ -332,19 +326,6 @@ int find_first_available_cluster()
     return cluster;
 }
 
-unsigned int get_next_cluster(unsigned int current_cluster)
-{
-    unsigned int fat_offset = current_cluster * 4;
-    unsigned int fat_sector = fat_begin_lba + (fat_offset / bpb.BPB_BytesPerSec);
-    unsigned int fat_entry_offset = fat_offset % bpb.BPB_BytesPerSec;
-    unsigned int fat_entry_value;
-
-    fseek(fp, fat_sector * bpb.BPB_BytesPerSec + fat_entry_offset, SEEK_SET);
-    fread(&fat_entry_value, sizeof(fat_entry_value), 1, fp);
-
-    return fat_entry_value & 0x0FFFFFFF;
-}
-
 unsigned int get_current_cluster()
 {
     unsigned int cluster = (currentEntry.DIR_FstClusLo) | ((currentEntry.DIR_FstClusHi) << 16);
@@ -352,6 +333,25 @@ unsigned int get_current_cluster()
     {
         return root_dir_first_cluster;
     }
+    return cluster;
+}
+
+unsigned int allocate_cluster()
+{
+    unsigned int fat_entry;
+    unsigned int cluster = find_first_available_cluster();
+    if (cluster == -1)
+    {
+        printf("No free cluster available\n");
+        return -1;
+    }
+    fat_entry = (bpb.BPB_RsvdSecCnt * bpb.BPB_BytesPerSec + (cwd.cluster * 4));
+    if (fat_entry != 0x00000000 && fat_entry != 0x0FFFFFFF)
+    {
+        printf("Cluster already allocated\n");
+        return -1;
+    }
+    // set_fat_entry(cluster, 0x0FFFFFFF);
     return cluster;
 }
 
@@ -559,7 +559,49 @@ void creat(char *FILENAME)
         }
     }
 }
-void cp(char *FILENAME, unsigned int TO) {}
+void cp(char *FILENAME, char *TO)
+{
+    // Check if the file exists
+    int file_cluster = locateDirectory(FILENAME);
+    if (file_cluster == -1)
+    {
+        printf("File not found\n");
+        return;
+    }
+
+    // If 'to' is a directory, copy the file directly into the folder
+    int dir_cluster = locateDirectory(TO);
+    if (dir_cluster != -1)
+    {
+        // Copy the file into the directory
+        creat(FILENAME);
+        return;
+    }
+
+    // If 'to' is not a valid entry, create a copy of the file within the current working directory
+    // and assign it the name given by 'to'.
+    char *new_filename = TO;
+    int dot_index = strcspn(TO, ".");
+    if (dot_index > 0)
+    {
+        // If 'to' has a file extension, create a copy with the new name and extension
+        new_filename = malloc(sizeof(char) * strlen(TO));
+        char *name = strtok(TO, ".");
+        char *extension = strtok(NULL, ".");
+        sprintf(new_filename, "%s_copy.%s", name, extension);
+    }
+    else
+    {
+        // If 'to' has no file extension, create a copy with the new name and the original extension
+        char *extension = strrchr(FILENAME, '.');
+        if (extension == NULL)
+        {
+            // If the original file has no extension, assign it '.copy'
+            extension = ".copy";
+        }
+        sprintf(new_filename, "%s%s", TO, extension);
+    }
+}
 
 // Read
 void open(char *FILENAME, int FLAGS)
