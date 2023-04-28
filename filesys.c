@@ -110,7 +110,7 @@ void mkdir(char *DIRNAME);            // half
 void creat(char *FILENAME);           // done
 void cp(char *FILENAME, char *TO);    // half
 void open(char *FILENAME, int FLAGS); // half
-void close(char *FILENAME);           // "done"
+void close(char *FILENAME);           // done
 void lsof(void);                      // done
 void size(char *FILENAME);
 void lseek(char *FILENAME, unsigned int OFFSET);
@@ -200,7 +200,8 @@ int main(int argc, char *argv[])
         }
         else if (strcmp(tokens->items[0], "cd") == 0)
         {
-            cd(tokens->items[1]);
+            if (tokens->items[1] != NULL)
+                cd(tokens->items[1]);
         }
         else if (strcmp(tokens->items[0], "ls") == 0)
         {
@@ -405,21 +406,27 @@ void cd(char *DIRNAME)
             cwd.cluster = cluster;
         }
 
-        if (strcmp(DIRNAME, ".") != 0)
+        if (strcmp(DIRNAME, "..") == 0)
         {
-            strcat(cwd.path, "/");
-            strcat(cwd.path, DIRNAME);
-        }
-        else if (strcmp(DIRNAME, "..") == 0)
-        {
-            int i = strlen(cwd.path);
-            unsigned char *current = " ";
-            while (strcmp(current, "/") != 0)
+            // Go up one directory
+            char *last_slash = strrchr(cwd.path, '/');
+            if (last_slash != NULL)
             {
-                cwd.path[i--] = '\0';
-                current = &cwd.path[i];
+                *last_slash = '\0';
             }
-            cwd.path[i] = '\0';
+        }
+        else if (strcmp(DIRNAME, ".") != 0)
+        {
+            // Go into the specified directory
+            if (strcmp(cwd.path, "/") == 0)
+            {
+                // If we're at the root directory, don't add a leading slash
+                sprintf(cwd.path, "%s", DIRNAME);
+            }
+            else
+            {
+                sprintf(cwd.path, "%s/%s", cwd.path, DIRNAME);
+            }
         }
     }
     else if (exists == -1)
@@ -660,6 +667,7 @@ void open(char *FILENAME, int FLAGS)
         }
         number_files_open++;
     }
+    //
 }
 
 void close(char *FILENAME)
