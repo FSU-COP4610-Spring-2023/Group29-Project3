@@ -650,7 +650,7 @@ void open(char *FILENAME, int FLAGS)
                 strcpy(files_opened[i].path, cwd.path);
                 printf("%s\n", files_opened[i].path);
                 files_opened[i].offset = 0;
-                files_opened[i].directoryEntry = currentEntry;
+                files_opened[i].directoryEntry.DIR_Name[0] = "LONGFILE";
                 files_opened[i].first_cluster = cluster;
                 files_opened[i].first_cluster_offset = clusterOffset;
                 files_opened[i].mode = 3;
@@ -668,10 +668,9 @@ void close(char *FILENAME)
     {
         for (int i = 0; i < 10; i++)
         {
-            if (files_opened[i].mode != 0 && strcmp(files_opened[i].path, FILENAME) == 0)
+            if (files_opened[i].mode != 0 && strcmp(files_opened[i].directoryEntry.DIR_Name, FILENAME) == 0)
             {
                 files_opened[i].mode = 0;
-                printf("CLOSED SUCCESSFULYLKY");
             }
         }
     }
@@ -681,7 +680,7 @@ void lsof(void)
     printf("index | file name | mode | offset | path \n");
     for (int i = 0; i < number_files_open; i++)
     {
-        if (files_opened[i].mode != -1)
+        if (files_opened[i].mode != 0)
         {
             char *mode;
             if (files_opened[i].mode == 1)
