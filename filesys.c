@@ -92,6 +92,12 @@ typedef struct
     // Hint: In the image, where does the first directory entry start?
 } CWD;
 
+typedef struct DirEntryNode
+{
+    DirEntry entry;
+    struct DirEntryNode *next;
+} DirEntryNode;
+
 typedef struct
 {
     int size;
@@ -120,15 +126,12 @@ void write(char *FILENAME, char *STRING);        // have to start
 void rm(char *FILENAME);                         // have to start
 void rmdir(char *DIRNAME);                       // have to start
 // void rename_file(char *FILENAME, char *NEW_FILENAME); // have to start
-void traverse_cluster(unsigned int cluster, void (*callback)(DirEntry));
-unsigned int get_next_cluster(unsigned int cluster);
-void print_entry_name(DirEntry entry);
 
 // global variables
 CWD cwd;
 FILE *fp; // file pointers
 BPB bpb;  // boot sector information
-DirEntry currentEntry;
+DirEntry current_entry;
 opened_file files_opened[10];
 
 // These variables should be all we need for accessing, modifying, and working with the FAT32 files
@@ -313,18 +316,18 @@ int locate_directory(char *DIRNAME)
         for (i = 0; i < 16; i++)
         {
             // retrieve information about current entry
-            fread(&currentEntry, sizeof(DirEntry), 1, fp);
+            fread(&current_entry, sizeof(DirEntry), 1, fp);
             // deleted/does not exist/long file name
-            if (currentEntry.DIR_Attr == 0x0F || currentEntry.DIR_Name == 0x00)
+            if (current_entry.DIR_Attr == 0x0F || current_entry.DIR_Name == 0x00)
                 continue;
             for (j = 0; j < 11; j++)
             {
-                if (currentEntry.DIR_Name[j] == 0x20)
-                    currentEntry.DIR_Name[j] = 0x00;
+                if (current_entry.DIR_Name[j] == 0x20)
+                    current_entry.DIR_Name[j] = 0x00;
             }
-            if (strcmp(currentEntry.DIR_Name, DIRNAME) == 0)
+            if (strcmp(current_entry.DIR_Name, DIRNAME) == 0)
             {
-                if (currentEntry.DIR_Attr == 0x10)
+                if (current_entry.DIR_Attr == 0x10)
                 {
                     // move pointer back to beginning potision
                     fseek(fp, originalPos, SEEK_SET);
@@ -366,7 +369,7 @@ int find_first_available_cluster()
 
 unsigned int get_current_cluster()
 {
-    unsigned int cluster = (currentEntry.DIR_FstClusLo) | ((currentEntry.DIR_FstClusHi) << 16);
+    unsigned int cluster = (current_entry.DIR_FstClusLo) | ((current_entry.DIR_FstClusHi) << 16);
     if (cluster == 0)
     {
         return root_dir_first_cluster;
@@ -473,9 +476,11 @@ for the # of sectors and move to the first byte of
 each cluster to find directory names for each cluster.
 We then move everything back in place so that we can
 use our offsets again for another function. */
+
 void ls(void)
 {
-    int i, j;
+    DirEntryNode *head = NULL;
+    DirEntryNode *tail = NULL;
     unsigned long originalPosition = ftell(fp);
     // Move file pointer to the beginning of the root directory
     fseek(fp, (((root_dir_first_cluster - 2) * bpb.BPB_SecsPerClus) + cluster_begin_lba), SEEK_SET);
@@ -486,44 +491,53 @@ void ls(void)
     {
         // move to the first byte of the cluster
         fseek(fp, (first_data_sector + ((currentCluster - 2) * bpb.BPB_SecsPerClus)) * bpb.BPB_BytesPerSec, SEEK_SET);
-        for (i = 0; i < 16; i++)
+        for (int i = 0; i < 16; i++)
         {
             // retrieve information about current entry
-            fread(&currentEntry, sizeof(DirEntry), 1, fp);
+            DirEntryNode *node = (DirEntryNode *)malloc(sizeof(DirEntryNode));
+            fread(&(node->entry), sizeof(DirEntry), 1, fp);
             // deleted/does not exist/long file name
-            if (currentEntry.DIR_Attr == 0x0F || currentEntry.DIR_Name[0] == 0x00)
+            if (node->entry.DIR_Attr == 0x0F || node->entry.DIR_Name[0] == 0x00)
                 continue;
-            for (j = 0; j < 11; j++)
+            for (int j = 0; j < 11; j++)
             {
-                if (currentEntry.DIR_Name[j] == 0x20)
-                    currentEntry.DIR_Name[j] = 0x00;
+                if (node->entry.DIR_Name[j] == 0x20)
+                    node->entry.DIR_Name[j] = 0x00;
             }
-            printf("%s ", currentEntry.DIR_Name);
+            // add node to linked list
+            node->next = NULL;
+            if (tail == NULL)
+            {
+                head = node;
+                tail = node;
+            }
+            else
+            {
+                tail->next = node;
+                tail = node;
+            }
         }
-        printf("\n");
         // move to fat entry offset
         fseek(fp, ((bpb.BPB_RsvdSecCnt * bpb.BPB_BytesPerSec) + (currentCluster * 4)), SEEK_SET);
         fread(&currentCluster, sizeof(int), 1, fp);
     }
+    // print directory entries from linked list
+    DirEntryNode *currentNode = head;
+    while (currentNode != NULL)
+    {
+        printf("%s ", currentNode->entry.DIR_Name);
+        currentNode = currentNode->next;
+    }
+    printf("\n");
+    // free linked list memory
+    currentNode = head;
+    while (currentNode != NULL)
+    {
+        DirEntryNode *nextNode = currentNode->next;
+        free(currentNode);
+        currentNode = nextNode;
+    }
     fseek(fp, originalPosition, SEEK_SET);
-}
-
-// Print the name of the given directory entry to stdout
-void print_entry_name(DirEntry entry)
-{
-    // Convert the entry's name to a null-terminated string
-    char name[13];
-    memcpy(name, entry.DIR_Name, 11);
-    name[11] = '\0';
-
-    // Trim trailing spaces from the name
-    char *end = name + strlen(name) - 1;
-    while (end >= name && *end == ' ')
-        end--;
-    *(end + 1) = '\0';
-
-    // Print the name
-    printf("%s ", name);
 }
 
 // Create
@@ -559,8 +573,8 @@ void mkdir(char *DIRNAME)
             fseek(fp, (first_data_sector + ((currentCluster - 2) * bpb.BPB_SecsPerClus)) * bpb.BPB_BytesPerSec, SEEK_SET);
             for (i = 0; i < (bpb.BPB_BytesPerSec * bpb.BPB_SecsPerClus / 32); i++)
             {
-                fread(&currentEntry, sizeof(DirEntry), 1, fp);
-                if (currentEntry.DIR_Name[0] == 0x00)
+                fread(&current_entry, sizeof(DirEntry), 1, fp);
+                if (current_entry.DIR_Name[0] == 0x00)
                 {
                     fseek(fp, -sizeof(DirEntry), SEEK_CUR);
                     fwrite(&new_entry, sizeof(DirEntry), 1, fp);
@@ -598,8 +612,8 @@ void creat(char *FILENAME)
             fseek(fp, (first_data_sector + ((currentCluster - 2) * bpb.BPB_SecsPerClus)) * bpb.BPB_BytesPerSec, SEEK_SET);
             for (i = 0; i < (bpb.BPB_BytesPerSec * bpb.BPB_SecsPerClus / 32); i++)
             {
-                fread(&currentEntry, sizeof(DirEntry), 1, fp);
-                if (currentEntry.DIR_Name[0] == 0x00)
+                fread(&current_entry, sizeof(DirEntry), 1, fp);
+                if (current_entry.DIR_Name[0] == 0x00)
                 {
                     fseek(fp, -sizeof(DirEntry), SEEK_CUR);
                     fwrite(&new_entry, sizeof(DirEntry), 1, fp);
@@ -703,8 +717,8 @@ void open(char *filename, int flags)
     }
 
     // Open the file
-    unsigned short high = currentEntry.DIR_FstClusHi;
-    unsigned short low = currentEntry.DIR_FstClusLo;
+    unsigned short high = current_entry.DIR_FstClusHi;
+    unsigned short low = current_entry.DIR_FstClusLo;
     unsigned int cluster = (high << 8) | low;
     unsigned long cluster_offset = (first_data_sector + ((cluster - 2) * bpb.BPB_SecsPerClus)) * bpb.BPB_BytesPerSec;
     if (cluster == 0)
@@ -714,7 +728,7 @@ void open(char *filename, int flags)
     }
     strcpy(files_opened[empty_slot_index].path, cwd.path);
     files_opened[empty_slot_index].offset = 0;
-    files_opened[empty_slot_index].directoryEntry = currentEntry;
+    files_opened[empty_slot_index].directoryEntry = current_entry;
     files_opened[empty_slot_index].first_cluster = cluster;
     files_opened[empty_slot_index].first_cluster_offset = cluster_offset;
     files_opened[empty_slot_index].mode = flags;
@@ -788,7 +802,7 @@ void size(char *FILENAME)
         printf("%s\n", "Error, is directory or does not exist");
         return;
     }
-    printf("%s %d %s\n", "File is", currentEntry.DIR_FileSize, "bytes");
+    printf("%s %d %s\n", "File is", current_entry.DIR_FileSize, "bytes");
 }
 
 void lseek(char *FILENAME, unsigned int OFFSET)
