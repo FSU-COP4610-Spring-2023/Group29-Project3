@@ -345,12 +345,12 @@ int locate_directory(char *DIRNAME)
 int find_first_available_cluster()
 {
     int cluster = -1;
-    int first_cluster = cwd.cluster;
-    int num_clusters = bpb.BPB_TotSec32;
+    int first_cluster = bpb.BPB_RsvdSecCnt + bpb.BPB_NumFATs * bpb.BPB_FATSz32;
+    int num_clusters = bpb.BPB_TotSec32 - first_cluster;
     // Iterate through the FAT entries until we find an unallocated cluster
     for (int i = first_cluster; i < first_cluster + num_clusters; i++)
     {
-        unsigned int fat_entry = (bpb.BPB_RsvdSecCnt * bpb.BPB_BytesPerSec + (cwd.cluster * 4));
+        unsigned int fat_entry = get_fat_entry(i);
         if (fat_entry == 0)
         {
             cluster = i;
@@ -379,15 +379,58 @@ unsigned int allocate_cluster()
         printf("No free cluster available\n");
         return -1;
     }
-    fat_entry = (bpb.BPB_RsvdSecCnt * bpb.BPB_BytesPerSec + (cwd.cluster * 4));
+    printf("We are getting here!\n");
+    
+    fat_entry = get_fat_entry(cluster);
     if (fat_entry != 0x00000000 && fat_entry != 0x0FFFFFFF)
     {
         printf("Cluster already allocated\n");
         return -1;
     }
-    // set_fat_entry(cluster, 0x0FFFFFFF);
+    set_fat_entry(cluster, 0x0FFFFFFF);
     return cluster;
 }
+
+void set_fat_entry(unsigned int cluster, unsigned int value)
+{
+    // Calculate the offset of the FAT entry in bytes
+    unsigned int offset = cluster * 4;
+
+    // Calculate the sector containing the FAT entry
+    unsigned int sector = bpb.BPB_RsvdSecCnt + (offset / bpb.BPB_BytesPerSec);
+
+    // Calculate the byte offset within the sector
+    unsigned int byte_offset = offset % bpb.BPB_BytesPerSec;
+
+    // Seek to the sector containing the FAT entry
+    fseek(fp, sector * bpb.BPB_BytesPerSec, SEEK_SET);
+
+    // Read the sector into a buffer
+    unsigned char sector_buffer[bpb.BPB_BytesPerSec];
+    fread(sector_buffer, 1, bpb.BPB_BytesPerSec, fp);
+
+    // Update the value of the FAT entry in the buffer
+    *((unsigned int *)(sector_buffer + byte_offset)) = value;
+
+    // Seek back to the sector and write the updated buffer
+    fseek(fp, sector * bpb.BPB_BytesPerSec, SEEK_SET);
+    fwrite(sector_buffer, 1, bpb.BPB_BytesPerSec, fp);
+}
+
+int get_fat_entry(unsigned int cluster_idx)
+{
+    unsigned int fat_offset = cluster_idx * 4;
+    unsigned int fat_sector = bpb.BPB_RsvdSecCnt + (fat_offset / bpb.BPB_BytesPerSec);
+    unsigned int fat_entry_offset = fat_offset % bpb.BPB_BytesPerSec;
+
+    fseek(fp, fat_sector * bpb.BPB_BytesPerSec + fat_entry_offset, SEEK_SET);
+
+    unsigned int fat_entry_value;
+    fread(&fat_entry_value, sizeof(fat_entry_value), 1, fp);
+
+    return fat_entry_value;
+}
+
 
 // commands -- all commands mentioned in part 2-6 (17 cmds)
 
@@ -525,7 +568,13 @@ void mkdir(char *DIRNAME)
         // 0x10 means directory instead of a file
         new_entry.DIR_Attr = 0x10;
         // Set the first cluster to the first free cluster
-        new_entry.DIR_FstClusLo = 0x0;
+        unsigned int cluster = allocate_cluster();
+        if(cluster == -1)
+        {
+            printf("Failed to allocate cluster\n");
+            return;
+        }
+        new_entry.DIR_FstClusLo = cluster;
         // Set the file size to 0
         new_entry.DIR_FileSize = 0x0;
         unsigned long currentCluster = cwd.cluster;
@@ -774,7 +823,40 @@ void write(char *FILENAME, char *STRING) {}
 
 // Delete
 void rm(char *FILENAME) {}
-void rmdir(char *DIRNAME) {}
+void rmdir(char *DIRNAME) 
+{
+    /*// Check if the directory exists
+    unsigned long dir_cluster = locate_directory(DIRNAME);
+    if (dir_cluster == 0)
+    {
+        printf("Directory not found\n");
+        return;
+    }
+
+    // Check if the directory is empty
+    if (!is_directory_empty(dir_cluster))
+    {
+        printf("Directory is not empty\n");
+        return;
+    }
+
+    // Remove the directory entry
+    remove_directory_entry(DIRNAME);
+
+    // Deallocate the clusters used by the directory
+    unsigned long current_cluster = dir_cluster;
+    while (!is_end_of_cluster_chain(current_cluster))
+    {
+        // Get the next cluster in the chain
+        unsigned long next_cluster = get_fat_entry(current_cluster);
+        // Deallocate the current cluster
+        deallocate_cluster(current_cluster);
+        // Move on to the next cluster
+        current_cluster = next_cluster;
+    }
+
+    printf("Directory removed successfully\n");*/
+}
 
 // add directory string to cwd path -- helps keep track of where we are in image.
 void add_to_path(char *dir)
