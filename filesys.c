@@ -869,7 +869,42 @@ void lseek(char *FILENAME, unsigned int OFFSET)
     }
     printf("File %s not found or not opened\n", FILENAME);
 }
-void read(char *FILENAME, unsigned int size) {}
+void read(char *FILENAME, unsigned int size) {
+    //make sure the file is readable
+    if(currentEntry.DIR_Attr > 0x04 &&  currentEntry.DIR_Attr < 0x01)
+    {
+        printf("%s\n", "Permission denied, file non-readable");
+        return;
+    }
+    // Find the file in the list of opened files
+    for (int i = 0; i < 10; i++)
+    {
+        if (strcmp(files_opened[i].directoryEntry.DIR_Name, FILENAME) == 0)
+        {
+            //if size + offset >= size of file
+            if(files_opened[i].offset + size >= files_opened[i].directoryEntry.DIR_FileSize)
+            {
+                while(files_opened[i].offset < size + files_opened[i].offset) 
+                    {
+                    printf();
+                    }
+                lseek(FILENAME, files_opened[i].offset);
+                return;
+            }
+            //if it is not greater
+            else 
+            {
+                while(files_opened[i].offset < size + files_opened[i].offset) 
+                    {
+                    printf();
+                    }
+                lseek(FILENAME, files_opened[i].offset);
+                return;
+            }
+            
+        }
+    }
+}
 
 // Update
 void write(char *FILENAME, char *STRING) {}
