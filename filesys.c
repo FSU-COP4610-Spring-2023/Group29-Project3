@@ -985,7 +985,7 @@ void rename_(char *FILENAME, char *NEWFILENAME)
         printf("Error: %s is a directory, not a file\n", FILENAME);
         return;
     }
-
+}
 // Delete
 void rm(char *FILENAME)
 {
