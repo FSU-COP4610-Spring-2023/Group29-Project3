@@ -898,29 +898,43 @@ void read(char *FILENAME, unsigned int size) {
     {
         if (strcmp(files_opened[i].directoryEntry.DIR_Name, FILENAME) == 0)
         {
-            //if size + offset >= size of file
-            if(files_opened[i].offset + size >= files_opened[i].directoryEntry.DIR_FileSize)
+            unsigned int offsetInitalValue = files_opened[i].offset;
+            printf("File contents:\n");
+            while(files_opened[i].offset < 0xFFFFFF8 && files_opened[i].offset < files_opened[i].offset + size) 
             {
-                while(files_opened[i].offset < size + files_opened[i].offset) 
-                    {
-                    printf();
-                    }
-                lseek(FILENAME, files_opened[i].offset);
-                return;
+                int buffer[512];
+                fread(buffer, 512, 1, fp);
+                printf("%.*s", 512, buffer);
+                files_opened[i].offset += 512;
             }
-            //if it is not greater
-            else 
-            {
-                while(files_opened[i].offset < size + files_opened[i].offset) 
-                    {
-                    printf();
-                    }
-                lseek(FILENAME, files_opened[i].offset);
-                return;
-            }
-            
+            return;
         }
-    }*/
+    }
+// (
+//         if (strcmp(files_opened[i].directoryEntry.DIR_Name, FILENAME) == 0)
+//         {
+//             //if size + offset >= size of file
+//             if(files_opened[i].offset + size >= files_opened[i].directoryEntry.DIR_FileSize)
+//             {
+//                 while(files_opened[i].offset < size + files_opened[i].offset) 
+//                     {
+//                     printf();
+//                     }
+//                 lseek(FILENAME, files_opened[i].offset);
+//                 return;
+//             }
+//             //if it is not greater
+//             else 
+//             {
+//                 while(files_opened[i].offset < size + files_opened[i].offset) 
+//                     {
+//                     printf();
+//                     }
+//                 lseek(FILENAME, files_opened[i].offset);
+//                 return;
+//             }
+            
+//         })
 }
 
 // Update
