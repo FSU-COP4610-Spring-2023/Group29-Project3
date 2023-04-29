@@ -107,3 +107,5 @@ Could not finish implementations of cp, read, write, rm, rmdir
 -   Current version of rm will not remove files but shows the possible structure the function could've taken given more time.
 -   lseek will throw a segmentation fault if you do not specify offset size.
 -   most incomplete functions do not have error handling and will throw segmentation faults.
+-   Current implementation of rmdir is incomplete and does not remove the dir entry from the image.
+-   Mkdir has minor bug that does not display "." and is not usable however new directories can still be navigated by cd and ".."
