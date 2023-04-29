@@ -879,17 +879,20 @@ void read(char *FILENAME, unsigned int size) {
         // Find the file in the list of opened files
     for (int i = 0; i < 10; i++)
     {
-        printf("File contents:\n");
-        while(files_opened[i].offset < 0xFFFFFF8 && files_opened[i].offset < files_opened[i].offset + size) 
+        if (strcmp(files_opened[i].directoryEntry.DIR_Name, FILENAME) == 0)
         {
-            int buffer[4096];
-            fread(buffer, 4096, 1, fp);
-            printf("%.*s", 4096, buffer);
-            lseek(FILENAME,4096);
+            unsigned int offsetInitalValue = files_opened[i].offset;
+            printf("File contents:\n");
+            while(files_opened[i].offset < 0xFFFFFF8 && files_opened[i].offset < files_opened[i].offset + size) 
+            {
+                int buffer[512];
+                fread(buffer, 512, 1, fp);
+                printf("%.*s", 512, buffer);
+                files_opened[i].offset += 512;
+            }
+            return;
         }
-        return;
     }
-
 // (
 //         if (strcmp(files_opened[i].directoryEntry.DIR_Name, FILENAME) == 0)
 //         {
