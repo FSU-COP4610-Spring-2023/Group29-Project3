@@ -386,7 +386,6 @@ unsigned int allocate_cluster()
         printf("No free cluster available\n");
         return -1;
     }
-    printf("We are getting here!\n");
     
     fat_entry = get_fat_entry(cluster);
     if (fat_entry != 0x00000000 && fat_entry != 0x0FFFFFFF)
@@ -628,8 +627,26 @@ void mkdir(char *DIRNAME)
                     fseek(fp, -sizeof(DirEntry), SEEK_CUR);
                     fwrite(&new_entry, sizeof(DirEntry), 1, fp);
                     fseek(fp, originalPosition, SEEK_SET);
-                    // Allocate the first cluster for the new directory
-                    allocate_cluster(new_entry.DIR_FstClusLo);
+
+                    // Create "." entry
+                    DirEntry dot_entry;
+                    memset(&dot_entry, 0, sizeof(DirEntry));
+                    memcpy(dot_entry.DIR_Name, ".", 1);
+                    dot_entry.DIR_Attr = 0x10;
+                    dot_entry.DIR_FstClusLo = new_entry.DIR_FstClusLo;
+                    dot_entry.DIR_FileSize = 0x0;
+                    fseek(fp, (first_data_sector + ((new_entry.DIR_FstClusLo - 2) * bpb.BPB_SecsPerClus)) * bpb.BPB_BytesPerSec, SEEK_SET);
+                    fwrite(&dot_entry, sizeof(DirEntry), 1, fp);
+                    
+                    // Create ".." entry
+                    DirEntry dotdot_entry;
+                    memset(&dotdot_entry, 0, sizeof(DirEntry));
+                    memcpy(dotdot_entry.DIR_Name, "..", 2);
+                    dotdot_entry.DIR_Attr = 0x10;
+                    dotdot_entry.DIR_FstClusLo = cwd.cluster;
+                    dotdot_entry.DIR_FileSize = 0x0;
+                    fseek(fp, (first_data_sector + ((new_entry.DIR_FstClusLo - 2) * bpb.BPB_SecsPerClus)) * bpb.BPB_BytesPerSec, SEEK_SET);
+                    fwrite(&dotdot_entry, sizeof(DirEntry), 1, fp);
                 }
             }
             printf("directory created successfully\n");
