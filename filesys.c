@@ -586,7 +586,7 @@ void mkdir(char *DIRNAME)
 {
     if (locate_directory(DIRNAME) != 1)
     {
-        printf("File already exists\n");
+        printf("Directory already exists\n");
         return;
     }
     else
@@ -755,6 +755,7 @@ void open(char *filename, int flags)
     }
     if (is_already_opened)
     {
+        printf("file is already open");
         return;
     }
 
@@ -865,7 +866,7 @@ void size(char *FILENAME)
 
     if (i == 1 || i == 0)
     {
-        printf("%s\n", "Error, is directory or does not exist");
+        printf("%s\n", "is directory or does not exist");
         return;
     }
     printf("%s %d %s\n", "File is", current_entry.DIR_FileSize, "bytes");
@@ -886,14 +887,15 @@ void lseek(char *FILENAME, unsigned int OFFSET)
     }
     printf("File %s not found or not opened\n", FILENAME);
 }
-void read(char *FILENAME, unsigned int size) {
-    //make sure the file is readable
-    if(current_entry.DIR_Attr > 0x04 &&  current_entry.DIR_Attr < 0x01)
+void read(char *FILENAME, unsigned int size)
+{
+    // make sure the file is readable
+    if (current_entry.DIR_Attr > 0x04 && current_entry.DIR_Attr < 0x01)
     {
         printf("%s\n", "Permission denied, file non-readable");
         return;
     }
-        // Find the file in the list of opened files
+    // Find the file in the list of opened files
     for (int i = 0; i < 10; i++)
     {
         if (strcmp(files_opened[i].directoryEntry.DIR_Name, FILENAME) == 0)
@@ -901,7 +903,7 @@ void read(char *FILENAME, unsigned int size) {
             unsigned int offsetInitalValue = files_opened[i].offset;
             unsigned int bytesRead = 0;
             printf("File contents:\n");
-            while(bytesRead < size && files_opened[i].offset < files_opened[i].directoryEntry.DIR_FileSize)
+            while (bytesRead < size && files_opened[i].offset < files_opened[i].directoryEntry.DIR_FileSize)
             {
                 char buffer[512];
                 fseek(fp, files_opened[i].directoryEntry.DIR_FstClusLo * bpb.BPB_BytesPerSec + files_opened[i].offset, SEEK_SET);
@@ -914,42 +916,43 @@ void read(char *FILENAME, unsigned int size) {
             return;
         }
     }
-// (
-//         if (strcmp(files_opened[i].directoryEntry.DIR_Name, FILENAME) == 0)
-//         {
-//             //if size + offset >= size of file
-//             if(files_opened[i].offset + size >= files_opened[i].directoryEntry.DIR_FileSize)
-//             {
-//                 while(files_opened[i].offset < size + files_opened[i].offset) 
-//                     {
-//                     printf();
-//                     }
-//                 lseek(FILENAME, files_opened[i].offset);
-//                 return;
-//             }
-//             //if it is not greater
-//             else 
-//             {
-//                 while(files_opened[i].offset < size + files_opened[i].offset) 
-//                     {
-//                     printf();
-//                     }
-//                 lseek(FILENAME, files_opened[i].offset);
-//                 return;
-//             }
-            
-//         })
+    // (
+    //         if (strcmp(files_opened[i].directoryEntry.DIR_Name, FILENAME) == 0)
+    //         {
+    //             //if size + offset >= size of file
+    //             if(files_opened[i].offset + size >= files_opened[i].directoryEntry.DIR_FileSize)
+    //             {
+    //                 while(files_opened[i].offset < size + files_opened[i].offset)
+    //                     {
+    //                     printf();
+    //                     }
+    //                 lseek(FILENAME, files_opened[i].offset);
+    //                 return;
+    //             }
+    //             //if it is not greater
+    //             else
+    //             {
+    //                 while(files_opened[i].offset < size + files_opened[i].offset)
+    //                     {
+    //                     printf();
+    //                     }
+    //                 lseek(FILENAME, files_opened[i].offset);
+    //                 return;
+    //             }
+
+    //         })
 }
 
 // Update
-void write(char *FILENAME, char *STRING) {
-//make sure the file is readable
-    if(current_entry.DIR_Attr > 0x04 &&  current_entry.DIR_Attr < 0x02)
+void write(char *FILENAME, char *STRING)
+{
+    // make sure the file is readable
+    if (current_entry.DIR_Attr > 0x04 && current_entry.DIR_Attr < 0x02)
     {
         printf("%s\n", "Permission denied, file non-writable.");
         return;
     }
-        // Find the file in the list of opened files
+    // Find the file in the list of opened files
     for (int i = 0; i < 10; i++)
     {
         if (strcmp(files_opened[i].directoryEntry.DIR_Name, FILENAME) == 0)
@@ -957,7 +960,7 @@ void write(char *FILENAME, char *STRING) {
             int initOff = files_opened[i].offset;
         }
     }
-     printf("%s\n", "Error, file not found.");
+    printf("%s\n", "Error, file not found.");
     return;
 }
 
@@ -999,7 +1002,69 @@ void rename_(char *FILENAME, char *NEWFILENAME)
 }
 
 // Delete
-void rm(char *FILENAME) {}
+void rm(char *FILENAME)
+{
+    void remove_file(char *FILENAME)
+    {
+        // Find the directory entry for the given file
+        int i, j;
+        int found = 0;
+        DirEntry entry;
+        int cluster = cwd.cluster;
+        while (cluster != 0xFFFFFFFF && cluster != 0x0FFFFFF8 && cluster != 0x0FFFFFFE && cluster != 0xFFFFFF0F && cluster != 0xFFFFFFF)
+        {
+            long byteOffsetOfCluster = (first_data_sector + ((cluster - 2) * bpb.BPB_SecsPerClus)) * bpb.BPB_BytesPerSec;
+            fseek(fp, byteOffsetOfCluster, SEEK_SET);
+            for (i = 0; i < 16; i++)
+            {
+                fread(&entry, sizeof(DirEntry), 1, fp);
+                if (entry.DIR_Attr == 0x0F || entry.DIR_Name[0] == 0x00)
+                {
+                    continue;
+                }
+                for (j = 0; j < 11; j++)
+                {
+                    if (entry.DIR_Name[j] == 0x20)
+                    {
+                        entry.DIR_Name[j] = 0x00;
+                    }
+                }
+                if (strcmp(FILENAME, entry.DIR_Name) == 0)
+                {
+                    found = 1;
+                    break;
+                }
+            }
+            if (found)
+            {
+                break;
+            }
+            cluster = get_next_cluster(cluster);
+        }
+
+        // If the file was not found, print an error message and return
+        if (!found)
+        {
+            printf("Error: File not found\n");
+            return;
+        }
+
+        // If the file is a directory, print an error message and return
+        if (entry.DIR_Attr & 0x10)
+        {
+            printf("Error: '%s' is a directory, use rmdir command instead\n", FILENAME);
+            return;
+        }
+
+        // Remove the file by clearing the FAT entries and updating the directory entry
+        unsigned int clusterNumber = entry.DIR_FstClusLo + (entry.DIR_FstClusHi * 65536);
+        clear_FAT(clusterNumber);
+        entry.DIR_Name[0] = 0x00;
+        long byteOffsetOfEntry = ftell(fp) - sizeof(DirEntry);
+        fseek(fp, byteOffsetOfEntry, SEEK_SET);
+        fwrite(&entry, sizeof(DirEntry), 1, fp);
+    }
+}
 void rmdir(char *DIRNAME)
 {
     /*// Check if the directory exists
