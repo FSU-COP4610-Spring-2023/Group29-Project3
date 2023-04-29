@@ -880,7 +880,7 @@ void read(char *FILENAME, unsigned int size) {
     for (int i = 0; i < 10; i++)
     {
         printf("File contents:\n");
-        while(files_opened[i].offset < 0xFFFFFF8) 
+        while(files_opened[i].offset < 0xFFFFFF8 && files_opened[i].offset < files_opened[i].offset + size) 
         {
             int buffer[4096];
             fread(buffer, 4096, 1, fp);
