@@ -100,3 +100,9 @@ Run the command `make filesys` from your terminal in the directory where you kee
 ## Bugs & Incomplete Section
 
 Could not finish implementations of cp, read, write, rm, rmdir
+
+Implementation of lseek does not check for file size being bigger than the offset size specified.
+Current implementation of cp does not recognize files and directories properly and will occasionaly copy or crash.
+Current version of read will throw an infinite loop, print out everything available on the image, or do literally nothing.
+Current version of rm will not remove files but shows the possible structure the function could've taken given more time.
+lseek will throw a segmentation fault if you do not specify offset size.
