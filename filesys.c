@@ -822,6 +822,7 @@ void close(char *FILENAME)
     number_files_open--;
     printf("File %s closed\n", FILENAME);
 }
+
 void lsof(void)
 {
     printf("index, file name, mode, offset, path \n");
@@ -941,7 +942,25 @@ void read(char *FILENAME, unsigned int size) {
 }
 
 // Update
-void write(char *FILENAME, char *STRING) {}
+void write(char *FILENAME, char *STRING) {
+//make sure the file is readable
+    if(current_entry.DIR_Attr > 0x04 &&  current_entry.DIR_Attr < 0x02)
+    {
+        printf("%s\n", "Permission denied, file non-writable.");
+        return;
+    }
+        // Find the file in the list of opened files
+    for (int i = 0; i < 10; i++)
+    {
+        if (strcmp(files_opened[i].directoryEntry.DIR_Name, FILENAME) == 0)
+        {
+            int initOff = files_opened[i].offset;
+        }
+    }
+     printf("%s\n", "Error, file not found.");
+    return;
+}
+
 void rename_(char *FILENAME, char *NEWFILENAME)
 {
     // Search for the directory entry corresponding to FILENAME
