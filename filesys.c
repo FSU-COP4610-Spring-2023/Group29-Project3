@@ -888,39 +888,50 @@ void lseek(char *FILENAME, unsigned int OFFSET)
 }
 void read(char *FILENAME, unsigned int size) {
     //make sure the file is readable
-    if(currentEntry.DIR_Attr > 0x04 &&  currentEntry.DIR_Attr < 0x01)
+    if(current_entry.DIR_Attr > 0x04 &&  current_entry.DIR_Attr < 0x01)
     {
         printf("%s\n", "Permission denied, file non-readable");
         return;
     }
-    // Find the file in the list of opened files
+        // Find the file in the list of opened files
     for (int i = 0; i < 10; i++)
     {
-        if (strcmp(files_opened[i].directoryEntry.DIR_Name, FILENAME) == 0)
+        printf("File contents:\n");
+        while(files_opened[i].offset < 0xFFFFFF8 && files_opened[i].offset < files_opened[i].offset + size) 
         {
-            //if size + offset >= size of file
-            if(files_opened[i].offset + size >= files_opened[i].directoryEntry.DIR_FileSize)
-            {
-                while(files_opened[i].offset < size + files_opened[i].offset) 
-                    {
-                    printf();
-                    }
-                lseek(FILENAME, files_opened[i].offset);
-                return;
-            }
-            //if it is not greater
-            else 
-            {
-                while(files_opened[i].offset < size + files_opened[i].offset) 
-                    {
-                    printf();
-                    }
-                lseek(FILENAME, files_opened[i].offset);
-                return;
-            }
-            
+            int buffer[4096];
+            fread(buffer, 4096, 1, fp);
+            printf("%.*s", 4096, buffer);
+            lseek(FILENAME,4096);
         }
+        return;
     }
+
+// (
+//         if (strcmp(files_opened[i].directoryEntry.DIR_Name, FILENAME) == 0)
+//         {
+//             //if size + offset >= size of file
+//             if(files_opened[i].offset + size >= files_opened[i].directoryEntry.DIR_FileSize)
+//             {
+//                 while(files_opened[i].offset < size + files_opened[i].offset) 
+//                     {
+//                     printf();
+//                     }
+//                 lseek(FILENAME, files_opened[i].offset);
+//                 return;
+//             }
+//             //if it is not greater
+//             else 
+//             {
+//                 while(files_opened[i].offset < size + files_opened[i].offset) 
+//                     {
+//                     printf();
+//                     }
+//                 lseek(FILENAME, files_opened[i].offset);
+//                 return;
+//             }
+            
+//         })
 }
 
 // Update
